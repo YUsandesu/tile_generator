@@ -4,8 +4,19 @@ import py5
 import numpy as np
 import time
 
+
 start_time = time.time()
-#我需要一个python函数 给定一个A列表（这是一个多边形的各个内角度数），给定一个列表B（是一组点坐标，这些点刚好是多边形的顶点，只是一部分），返回他的所有可能解（解是完整的这个形状的点坐标列表）
+
+#互相垂直的两条直线关系是k2=-(1/k1)
+#中点：(向量A+向量B)/2
+#直线斜率：k=（y2-y1）/（x2-x1）
+
+#def find_perpendicular(A,B):
+
+
+
+
+
 def getdegree_Polygon (Side):
     AddShapeDegree = np.pi * (Side-2)
     Degree=AddShapeDegree/Side
@@ -23,33 +34,27 @@ def convert_points_to_lines(pointtuple):
         x2, y2 = pointtuple[i + 1]
         lines.append([x1, y1, x2, y2])
     return lines
-#py5.lines需要特殊输入格式x,y,x,y
-#此函数是为了转换格式
+#py5.lines需要特殊输入格式【（x1,y1,x2,y2）,（x3,y3,x4,y4）】
+#此函数是为了转换格式,可以将（x,y）(z，h)转换成一组连续的直线
 
 def draw_tup_shape (pointtuple):
   if pointtuple[0] != pointtuple[len(pointtuple)-1]:
     print ("输入的点集收尾不相接","自动补充","[",len(pointtuple)+1,"]=",pointtuple[0])
     pointtuple.append(pointtuple[0])
     print(pointtuple)
-  ou=range(0, len(pointtuple)-1, 2)
-  ji=range(1, len(pointtuple)-1, 2)
-  ji=ji[::-1]
-  linb=list(ou)+list(ji)
-  linb.append(len(pointtuple)-1)
-  linb.append(len(pointtuple)-1)
-  print(linb)
-  newlist=[]
 
-  for i in range(len(pointtuple)):
-      newlist.append(pointtuple[linb[i]])
-  print(newlist)
-  py5.lines(convert_points_to_lines(newlist))
+  py5.lines(convert_points_to_lines(pointtuple))
   for i in range(len(pointtuple)):
       py5.fill(255, 0, 0)
       py5.text_size(44)
+      if i == 0 :
+
+          py5.text(","+str(i), pointtuple[i][0]+22, pointtuple[i][1])
+          continue
       py5.text(i, pointtuple[i][0], pointtuple[i][1])
-#给定一个点集可以自动画出
-#规整数据格式应该放在下面的get_everypoint
+
+
+
 
 def get_nextpot(A,B,cosR):
         VeA = sym.Matrix([[A[0]], [A[1]]])  # 列向量
@@ -70,7 +75,6 @@ def get_nextpot(A,B,cosR):
 def get_everypoint(A,B,ang):
     jieguo = []
     jieguo.append(B)
-
     def cal_times(ang):
         times=(ang-1+2-1)//2
         return (times)
@@ -84,7 +88,20 @@ def get_everypoint(A,B,ang):
         if len(back)!=1:
             jieguo.append(back[1])
         print("循环：",i,"计算结果：",back)
-    return (jieguo)
+    def change_shunxu(alist):
+        lennum = len(alist)
+        ou = range(0, lennum, 2)
+        ji = range(1, lennum, 2)
+        ji = ji[::-1]
+        linb = list(ou) + list(ji)
+        print(linb)
+        newlist = []
+        for i in range(lennum):
+            newlist.append(alist[linb[i]])
+        print(newlist)
+        return (newlist)
+    reallist = change_shunxu(jieguo)
+    return (reallist)
 #↑通过给定【Center】：A，【AskPoint】：B，ang:【边数】
 #返回一个列表型，这个ang边形的点集
 
@@ -116,12 +133,19 @@ def draw():
     py5.translate(800/2,600/2)
     py5.stroke(0)  # 设置线条颜色为黑色
     py5.stroke_weight(2)  # 设置线条宽度为 2 像素
-    creat_anybianxing(((10, 15),), None, ((100, 200),),6)
-    py5.point(10,15)
-    py5.text("reg",10,15)
+    creat_anybianxing(((0, 0),), None, ((0, 200),),3)
+    py5.point(0,0)
+    py5.text("reg",0,0)
+    py5.stroke(255, 0, 0,100)
+    py5.lines([
+        (400, 0, -400, 0),
+        (0, 400, 0, -400)
+    ])
 
     # 停止 draw 循环
     py5.no_loop()
+    #py5.loop()
+
 
 # 启动 py5 草图
 py5.run_sketch()
