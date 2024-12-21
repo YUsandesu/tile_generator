@@ -4,57 +4,46 @@ import py5
 import numpy as np
 import time
 
+from altair import Theta
+from py5 import text_size
 
+TheTextsize = 22
 start_time = time.time()
 
 #互相垂直的两条直线关系是k2=-(1/k1)
 #中点：(向量A+向量B)/2
 #直线斜率：k=（y2-y1）/（x2-x1）
-
 #def find_perpendicular(A,B):
 
 
-
-
-
-def getdegree_Polygon (Side):
-    AddShapeDegree = np.pi * (Side-2)
-    Degree=AddShapeDegree/Side
-    Angle=np.degrees(Degree)
-    print (Side,"角形 的每个角度是：", round(Angle,10))
-    print("弧度:",Degree)
-    return (Degree)
-#↑给定一个【边数】可以求解这个正多边形的内角Cos弧度
-
-def convert_points_to_lines(pointtuple):
-    # 将点的列表转换为线段的列表
-    lines = []
-    for i in range(len(pointtuple) - 1):  # 遍历相邻点
-        x1, y1 = pointtuple[i]
-        x2, y2 = pointtuple[i + 1]
-        lines.append([x1, y1, x2, y2])
-    return lines
-#py5.lines需要特殊输入格式【（x1,y1,x2,y2）,（x3,y3,x4,y4）】
-#此函数是为了转换格式,可以将（x,y）(z，h)转换成一组连续的直线
-
-def draw_tup_shape (pointtuple):
-  if pointtuple[0] != pointtuple[len(pointtuple)-1]:
-    print ("输入的点集收尾不相接","自动补充","[",len(pointtuple)+1,"]=",pointtuple[0])
-    pointtuple.append(pointtuple[0])
-    print(pointtuple)
-
-  py5.lines(convert_points_to_lines(pointtuple))
-  for i in range(len(pointtuple)):
-      py5.fill(255, 0, 0)
-      py5.text_size(44)
-      if i == 0 :
-
-          py5.text(","+str(i), pointtuple[i][0]+22, pointtuple[i][1])
-          continue
-      py5.text(i, pointtuple[i][0], pointtuple[i][1])
-
-
-
+def draw_tup_shape(pointtuple,drawnumber=True,nubersize=30):
+    def convert_points_to_lines(inpointtuple):
+        # 将点的列表转换为线段的列表
+        lines = []
+        for i in range(len(inpointtuple) - 1):  # 遍历相邻点
+            x1, y1 = inpointtuple[i]
+            x2, y2 = inpointtuple[i + 1]
+            lines.append([x1, y1, x2, y2])
+        return lines
+    # py5.lines需要特殊输入格式【（x1,y1,x2,y2）,（x3,y3,x4,y4）】
+    # 此函数是为了转换格式,可以将（x,y）(z，h)转换成一组连续的直线
+    if pointtuple[0] != pointtuple[len(pointtuple) - 1]:
+        print("输入的点集收尾不相接", "自动补充", "[", len(pointtuple) + 1, "]=", pointtuple[0])
+        pointtuple.append(pointtuple[0])
+        print(pointtuple)
+    py5.lines(convert_points_to_lines(pointtuple))
+    if drawnumber==True:
+        nowsize = TheTextsize
+        for i in range(len(pointtuple)):
+            py5.fill(255, 0, 0)
+            py5.text_size(nubersize)
+            if i == 0:
+                py5.text("," + str(i), pointtuple[i][0] + 22, pointtuple[i][1])
+                continue
+            py5.text(i, pointtuple[i][0], pointtuple[i][1])
+        py5.text_size(nowsize)
+        # 创建每个点的序号
+#输入一组点坐标，此函数可以将这组坐标连线（形成收尾相接的曲线）
 
 def get_nextpot(A,B,cosR):
         VeA = sym.Matrix([[A[0]], [A[1]]])  # 列向量
@@ -70,7 +59,6 @@ def get_nextpot(A,B,cosR):
 #【准备拓展】：给定点A和B，存在一些可能的夹角（一组列表），求所有可能解
 # for cosR in cosR_list:
 #如果A,B不是四（多）边形临边而是对边的情况下↑↑↑↑无法求解
-
 
 def get_everypoint(A,B,ang):
     jieguo = []
@@ -127,6 +115,7 @@ def creat_anybianxing(center=None,radio=None,ask_point=None,any=3):
 def setup():
     py5.size(800, 600)  # 设置窗口尺寸为 800x600 像素
     py5.background(240)  # 设置背景颜色为浅灰色
+    py5.text_size(TheTextsize)
 
 def draw():
     py5.fill(50, 100, 200)  # 设置文字颜色
