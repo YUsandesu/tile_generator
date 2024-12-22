@@ -5,24 +5,33 @@ def setup():
     py5.size(800, 800)
     py5.background('#004477')
     py5.stroke('#FFFFFF')
-    py5.stroke_weight(3)
+    py5.stroke_weight(2)
     py5.no_loop()
-    py5.no_fill()
+    # py5.no_fill()
 
-def draw_triangle(x, y, side_length):
+def draw_triangle(x, y, side_length, color):
     h = (side_length * (3 ** 0.5)) / 2  # height of the equilateral triangle
     py5.begin_shape()
     py5.vertex(x, y)
     py5.vertex(x + side_length / 2, y - h)
     py5.vertex(x - side_length / 2, y - h)
     py5.end_shape(py5.CLOSE)
+    py5.fill(color)
 
 def draw_hexagon(x, y, side_length):
-    for i in range(6):
+    bands = [
+        '#FF9900', # orange
+        '#6633FF', # violet
+        '#0099FF', # blue
+        '#FF0000', # red
+        '#FFFF00', # yellow
+        '#00FF00', # green
+    ]
+    for i, color in enumerate(bands):
         py5.push_matrix()
         py5.translate(x, y)
         py5.rotate(py5.radians(60 * i))
-        draw_triangle(0, 0, side_length)
+        draw_triangle(0, 0, side_length, color)
         py5.pop_matrix()
 
 def draw():
