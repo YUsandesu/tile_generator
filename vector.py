@@ -79,8 +79,8 @@ class Vec3:
     
 
 if __name__ == "__main__":
-    a = Point2(10, 12, 0)
-    b = Point2(10, 10, 1)
+    a = Point2(10, 12)
+    b = Point2(10, 10)
     v = Vec2(b, a)
     print(v)
     v1 = Vec2(2 * b, a)
@@ -89,8 +89,8 @@ if __name__ == "__main__":
     print(v / 2)
     print(abs(v))
     
-    a = Point3(10, 12, 15, 0)
-    b = Point3(10, 10, 1, 1)
+    a = Point3(10, 12, 15)
+    b = Point3(10, 10, 1)
     v = Vec3(b, a)
     print(v)
     v1 = Vec3(2 * b, a)
