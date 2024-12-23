@@ -1,6 +1,8 @@
 import math
 import json
 import random
+import numpy as np
+import hsluv
 from data_dict import base_data
 
 data = base_data.copy()
@@ -11,40 +13,8 @@ def approx(value):
 def dist(x1, y1, x2, y2):
     return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
-def normalize(points):
-    num_pts = len(points)
-    xbar = 0
-    ybar = 0
-    max_dist = 0
-
-    # find longest diagonal
-    for i in range(num_pts):
-        xbar += points[i]['x']
-        ybar += points[i]['y']
-        for j in range(i, num_pts):
-            d = dist(points[i]['x'], points[i]['y'], points[j]['x'], points[j]['y'])
-            if d > max_dist:
-                max_dist = d
-    # calculate mean point
-    xbar /= num_pts
-    ybar /= num_pts
-
-    # subtract mean and normalize based on length of longest diagonal
-    normalized_points = [
-        [50 * (point['x'] - xbar) / max_dist, 50 * (point['y'] - ybar) / max_dist]
-        for point in points
-    ]
-    return normalized_points
-
 # def convert_pts_2_str(points):
 #     return ' '.join([f"{point[0] + 25},{point[1] + 25}" for point in points])
-
-# def rgbToHex(r, g, b):
-#       R = round(r)
-#       G = round(g)
-#       B = round(b)
-#       return '#' + ((1 << 24) + (R << 16) + (G << 8) + B).toString(16).slice(1)
-
 
 
 def calculate_offsets(symmetry, pattern, disorder, random_seed, pan, steps, shift):
@@ -161,9 +131,9 @@ def calculate_intersection_points(data, grid, sin_cos_table):
             x1, y1 = dual_pts[(i + 1) % num_dual_pts]['x'], dual_pts[(i + 1) % num_dual_pts]['y']
             area += 0.5 * (x0 * y1 - y0 * x1)
 
-        pt['area'] = str(round(area * 1000) / 1000)
+        pt['area'] = round(area * 1000) / 1000
         pt['numVertices'] = len(angles)
-        pt['angles'] = json.dumps(angles)
+        pt['angles'] = angles
         pt['dualPts'] = dual_pts
         pt['mean'] = mean
     return pts
@@ -175,24 +145,58 @@ def calculate_colors(hue, hue_range, sat, contrast):
     end = [hue - hue_range, sat, lightness - contrast]
     return [start, end]
 
+def lerp(start, stop, t):
+    return start + t * (stop - start)
 
-def calculate_tiles(pts, multiplier, epsilon=1e-10):
-    for pt in pts.values():
-        angles = [line['angle'] * multiplier for line in pt['lines']]
-        angles += [(angle + math.pi) % (2 * math.pi) for angle in angles]
-        angles = sorted(set(approx(angle, epsilon) for angle in angles))
+def rgb_to_hex(r, g, b):
+    return "#{:02x}{:02x}{:02x}".format(r, g, b)
 
-        offset_pts = [{'x': pt['x'] + epsilon * -math.sin(angle), 'y': pt['y'] + epsilon * math.cos(angle)} for angle in angles]
+def normalize(points):
+    num_pts = len(points)
+    xbar = sum(p['x'] for p in points) / num_pts
+    ybar = sum(p['y'] for p in points) / num_pts
+    max_dist = 0
+    for i in range(num_pts):
+        for j in range(i, num_pts):
+            d = dist(points[i]['x'], points[i]['y'], points[j]['x'], points[j]['y'])
+            if d > max_dist:
+                max_dist = d
+    return [[50 * (p['x'] - xbar) / max_dist, 50 * (p['y'] - ybar) / max_dist] for p in points]
 
-        dual_pts = [{'x': (offset_pts[i]['x'] + offset_pts[(i + 1) % len(offset_pts)]['x']) / 2,
-                     'y': (offset_pts[i]['y'] + offset_pts[(i + 1) % len(offset_pts)]['y']) / 2} for i in range(len(offset_pts))]
+def calculate_color_palette(intersection_points, orientation_coloring, colors, reverse_colors):
+    proto_tiles = list(intersection_points.values())
 
-        pt['dualPts'] = dual_pts
-        pt['mean'] = {'x': pt['x'], 'y': pt['y']}
-        pt['area'] = sum(0.5 * (dual_pts[i]['x'] * dual_pts[(i + 1) % len(dual_pts)]['y'] - dual_pts[i]['y'] * dual_pts[(i + 1) % len(dual_pts)]['x']) for i in range(len(dual_pts)))
-        pt['angles'] = angles
+    def filter_function(e, f):
+        return e['angles'] == f['angles'] if orientation_coloring else e['area'] == f['area']
 
-    return pts
+    proto_tiles = [e for i, e in enumerate(proto_tiles) if all(not filter_function(e, f) for f in proto_tiles[:i])]
+    proto_tiles.sort(key=lambda x: x['numVertices'])
+
+    num_tiles = len(proto_tiles)
+    start, end = colors
+
+    color_palette = []
+    range_val = num_tiles - 1 / 2
+
+    for i, tile in enumerate(proto_tiles):
+        h = lerp(start[0], end[0], i / range_val) % 360
+        s = lerp(start[1], end[1], i / range_val)
+        l = lerp(start[2], end[2], i / range_val)
+        color = hsluv.hsluv_to_rgb([h, s, l])
+        color = [round(255 * c) for c in color]
+        color_palette.append({
+            'fill': rgb_to_hex(*color),
+            'points': normalize(tile['dualPts']),
+            'area': tile['area'],
+            'angles': tile['angles'],
+        })
+
+    if reverse_colors:
+        reversed_colors = [e['fill'] for e in color_palette[::-1]]
+        for i, e in enumerate(color_palette):
+            e['fill'] = reversed_colors[i]
+    return color_palette
+
 
 # Calculate necessary values
 steps_val = steps(data['radius'], data['symmetry'])
@@ -213,18 +217,14 @@ data['offsets'] = offsets_val
 grid = compute_grid(data['symmetry'], steps_val, offsets_val)
 intersection_points = calculate_intersection_points(data, grid, sin_cos_table_val)
 # tiles = calculate_tiles(intersection_points, data['multiplier'])
+colors = calculate_colors(data['hue'], data['hueRange'], data['sat'], data['contrast'])
+color_palette = calculate_color_palette(intersection_points, data['orientationColoring'], colors, data['reverseColors'])
 
-# Save the results to files
-with open('grid.json', 'w') as file:
-    json.dump(grid, file, indent=4)
+data['grid'] = grid
+data['intersectionPoints'] = intersection_points
+data['tiles'] = color_palette
 
 with open('data.json', 'w') as file:
     json.dump(data, file, indent=4)
-
-# with open('tiles.json', 'w') as file:
-#     json.dump(tiles, file, indent=4)
-
-with open('intersection_points.json', 'w') as file:
-    json.dump(intersection_points, file, indent=4)
 
 print("Grid and tiles have been calculated and saved to 'grid.json' and 'tiles.json'")

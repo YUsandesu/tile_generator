@@ -2,19 +2,8 @@ import py5
 import numpy as np
 import json
 
-# Load intersection points data
-with open('intersection_points.json', 'r') as file:
-    intersection_points = json.load(file)
-
-with open('grid.json', 'r') as file:
-    grid = json.load(file)
-
 with open('data.json', 'r') as file:
     data = json.load(file)
-
-# Sample fixed data input
-data['grid'] = grid
-data['intersectionPoints'] = intersection_points
 
 def setup():
     py5.size(800, 800)

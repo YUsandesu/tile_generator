@@ -8,7 +8,7 @@ base_data = {
     'randomSeed': 0,
     'zoom': 1.0,
     "showIntersections": True,
-    "colorTiles": False,
+    "colorTiles": True,
     "orientationColoring": False,
     'stroke': 127,
     'showStroke': True,
