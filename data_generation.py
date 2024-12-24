@@ -4,18 +4,15 @@ import random
 import numpy as np
 import hsluv
 from data_dict import base_data
-
-data = base_data.copy()
+import time 
+from log_tool import decorate_all_functions, print_summary
+import sys
 
 def approx(value):
     return round(value * data['inverseEpsilon']) / data['inverseEpsilon']
 
 def dist(x1, y1, x2, y2):
     return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-
-# def convert_pts_2_str(points):
-#     return ' '.join([f"{point[0] + 25},{point[1] + 25}" for point in points])
-
 
 def calculate_offsets(symmetry, pattern, disorder, random_seed, pan, steps, shift):
     offsets = [pattern] * symmetry
@@ -197,34 +194,43 @@ def calculate_color_palette(intersection_points, orientation_coloring, colors, r
             e['fill'] = reversed_colors[i]
     return color_palette
 
+current_module = sys.modules[__name__]
 
-# Calculate necessary values
-steps_val = steps(data['radius'], data['symmetry'])
-spacing_val = spacing(data['zoom'], data['width'], data['height'], steps_val)
-multiplier_val = multiplier(data['symmetry'])
-sin_cos_table_val = sin_cos_table(data['symmetry'], multiplier_val)
-sin_cos_rotate_val = sin_cos_rotate(data['rotate'])
-shift_val = shift(sin_cos_table_val, sin_cos_rotate_val)
-offsets_val = calculate_offsets(data['symmetry'], data['pattern'], data['disorder'], data['randomSeed'], data['pan'], steps_val, shift_val)
+if __name__ == "__main__":
+    decorate_all_functions(current_module)
 
-# Update data with calculated values
-data['steps'] = steps_val
-data['spacing'] = spacing_val
-data['multiplier'] = multiplier_val
-data['offsets'] = offsets_val
+    start_time = time.time()
+    data = base_data.copy()
 
-# Calculate intersection points and tiles
-grid = compute_grid(data['symmetry'], steps_val, offsets_val)
-intersection_points = calculate_intersection_points(data, grid, sin_cos_table_val)
-# tiles = calculate_tiles(intersection_points, data['multiplier'])
-colors = calculate_colors(data['hue'], data['hueRange'], data['sat'], data['contrast'])
-color_palette = calculate_color_palette(intersection_points, data['orientationColoring'], colors, data['reverseColors'])
+    # Calculate necessary values
+    steps_val = steps(data['radius'], data['symmetry'])
+    spacing_val = spacing(data['zoom'], data['width'], data['height'], steps_val)
+    multiplier_val = multiplier(data['symmetry'])
+    sin_cos_table_val = sin_cos_table(data['symmetry'], multiplier_val)
+    sin_cos_rotate_val = sin_cos_rotate(data['rotate'])
+    shift_val = shift(sin_cos_table_val, sin_cos_rotate_val)
+    offsets_val = calculate_offsets(data['symmetry'], data['pattern'], data['disorder'], data['randomSeed'], data['pan'], steps_val, shift_val)
 
-data['grid'] = grid
-data['intersectionPoints'] = intersection_points
-data['tiles'] = color_palette
+    # Update data with calculated values
+    data['steps'] = steps_val
+    data['spacing'] = spacing_val
+    data['multiplier'] = multiplier_val
+    data['offsets'] = offsets_val
 
-with open('data.json', 'w') as file:
-    json.dump(data, file, indent=4)
+    # Calculate intersection points and tiles
+    grid = compute_grid(data['symmetry'], steps_val, offsets_val)
+    intersection_points = calculate_intersection_points(data, grid, sin_cos_table_val)
+    colors = calculate_colors(data['hue'], data['hueRange'], data['sat'], data['contrast'])
+    color_palette = calculate_color_palette(intersection_points, data['orientationColoring'], colors, data['reverseColors'])
 
-print("Grid and tiles have been calculated and saved to 'grid.json' and 'tiles.json'")
+    data['grid'] = grid
+    data['intersectionPoints'] = intersection_points
+    data['tiles'] = color_palette
+
+    with open('data.json', 'w') as file:
+        json.dump(data, file, indent=4)
+
+    print("Grid and tiles have been calculated and saved to 'grid.json' and 'tiles.json'")
+    print(f"Total process took {time.time() - start_time:.4f} seconds\n")
+
+    print_summary(current_module)
