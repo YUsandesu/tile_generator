@@ -4,7 +4,7 @@ import py5
 import numpy as np
 import time
 
-from altair import Theta
+# from altair import Theta
 from py5 import text_size
 
 TheTextsize = 22
