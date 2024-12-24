@@ -90,5 +90,5 @@ def draw():
     py5.no_fill()#绘制形状仅显示边框，而不填充任何颜色。
 
 
-
+#12/24
 py5.run_sketch()
