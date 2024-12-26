@@ -6,6 +6,8 @@ import time
 
 # from altair import Theta
 from py5 import text_size
+import YuSan_PY5_Toolscode as YT
+from YuSan_PY5_Toolscode import save_surface
 
 TheTextsize = 22
 start_time = time.time()
@@ -45,7 +47,7 @@ def draw_tup_shape(pointtuple,drawnumber=True,nubersize=30):
         # 创建每个点的序号
 #输入一组点坐标，此函数可以将这组坐标连线（形成收尾相接的曲线）
 
-def get_nextpot(A,B,cosR):
+def get_nextpot_bycos(A,B,cosR):
         VeA = sym.Matrix([[A[0]], [A[1]]])  # 列向量
         VeB = sym.Matrix([[B[0]], [B[1]]])  # 列向量
         VeC = sym.Matrix([sym.symbols('x', real=True), sym.symbols('y', real=True)])  # 列向量 (x, y)
@@ -71,7 +73,7 @@ def get_everypoint(A,B,ang):
     eachradio=2*np.pi/ang
     for i in range(1,cal_times(ang)+1):
         inputcosR=np.cos(eachradio*i)
-        back=get_nextpot(A,B,inputcosR)
+        back=get_nextpot_bycos(A,B,inputcosR)
         jieguo.append(back[0])
         if len(back)!=1:
             jieguo.append(back[1])
@@ -105,7 +107,7 @@ def creat_anybianxing(center=None,radio=None,ask_point=None,any=3):
             return ("err")
         else:
             print(ask_point)
-            dianji=get_everypoint(center[0],ask_point[0],any)
+            #dianji=
             print("dianji=",dianji)
             draw_tup_shape(dianji)
     if not center and ask_point and radio:
@@ -116,13 +118,23 @@ def setup():
     py5.size(800, 600)  # 设置窗口尺寸为 800x600 像素
     py5.background(240)  # 设置背景颜色为浅灰色
     py5.text_size(TheTextsize)
+    YT.ceshi2()
+
+    alatter = YT.droppoint_group_in_note(get_everypoint((100, 100), (100, -100), 6))
+    result = '-'.join(alatter)
+    save_surface(result, floor=2)
 
 def draw():
+    YT.ceshi3()
+
+
+    py5.translate(800 / 2, 600 / 2)
+    py5.background(200,200,255,255)
     py5.fill(50, 100, 200)  # 设置文字颜色
-    py5.translate(800/2,600/2)
+
     py5.stroke(0)  # 设置线条颜色为黑色
     py5.stroke_weight(2)  # 设置线条宽度为 2 像素
-    creat_anybianxing(((0, 0),), None, ((0, 200),),3)
+    #creat_anybianxing(((0, 0),), None, ((0, 200),),9)
     py5.point(0,0)
     py5.text("reg",0,0)
     py5.stroke(255, 0, 0,100)
@@ -131,8 +143,13 @@ def draw():
         (0, 400, 0, -400)
     ])
 
+    YT.draw_orgin_axes()
+    #YT.ceshi2()
+
+    #YT.screnn_drawlines_detail()
+    YT.screen_draw()
     # 停止 draw 循环
-    py5.no_loop()
+    #py5.no_loop()
     #py5.loop()
 
 

@@ -1,9 +1,5 @@
-from tkinter.constants import RIGHT
-
 import py5_tools
 from scipy.constants import point
-from xarray.core.utils import alias
-
 py5_tools.add_jars('./jars')
 import py5
 from controlP5 import ControlP5, Slider
