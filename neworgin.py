@@ -7,7 +7,7 @@ import time
 # from altair import Theta
 from py5 import text_size
 import YuSan_PY5_Toolscode as YT
-from YuSan_PY5_Toolscode import save_surface
+from YuSan_PY5_Toolscode import save_surface, surfacedic
 
 TheTextsize = 22
 start_time = time.time()
@@ -123,7 +123,7 @@ def setup():
     alatter = YT.droppoint_group_in_note(get_everypoint((100, 100), (100, -100), 6))
     result = '-'.join(alatter)
     save_surface(result, floor=2)
-
+    print(surfacedic)
 def draw():
     YT.ceshi3()
 

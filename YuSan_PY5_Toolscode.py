@@ -301,6 +301,23 @@ def screen_draw():
     for f in range(0,3):
         screen_draw_surface(f)
         screen_drawlines_detail(f)
+def save_suface_algo():
+    y1,y2,x1,x2=1,2,3,4
+    k=(y1-y2)/(x1-x2)
+    b=y1-k*x1
+    back=str(k)+"x+"+str(b)
+    #一个多边形外接圆圆心：所有顶点的平均值
+    #===============================
+    chain = "A-B-C-D"
+    nodes = chain.split("-")  # 将链式结构分解为节点列表["A", "B", "C"]
+    # 生成相邻对
+    pairs = [(nodes[i], nodes[i + 1]) for i in range(len(nodes) - 1)]
+    # 加入首尾连接
+    pairs.append((nodes[-1], nodes[0]))# 结果: [('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A')]
+    formatted_pairs = [f"{a}-{b}" for a, b in pairs]
+    print(formatted_pairs[1]+":"+back)
+
+
 
 def ceshi2():
     listceshi=[]
@@ -321,7 +338,7 @@ def ceshi3():
                   strokeweight=random.randint(1,10))
     #print(pointdic)
 
-
+save_suface_algo()
 #ceshi2()
 print (pointdic)
 #print(save_surface("A-C-D-E-M6-A7"))
