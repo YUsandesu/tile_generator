@@ -5,6 +5,8 @@ from cytoolz import remove
 from docutils.utils.math.latex2mathml import letters
 import random
 from collections import defaultdict
+
+from fontTools.misc.cython import returns
 from numba.core.cgutils import ifnot
 from numba.cuda import local
 from py5 import stroke, color, vertices
@@ -16,6 +18,80 @@ nowletterlist=letterlist[:]
 linedic={}
 surfacedic={}
 surface_drawed=[]
+
+
+import numpy as np
+
+class Matrix2D:
+    def __init__(self):
+
+            self.matrix = np.array(matrix)
+            if self.matrix.shape[0] != 3:
+                 raise ValueError("初始化错误：提供的矩阵必须是行数为(3)的二维矩阵")
+
+
+    def apply_translation(self, tx, ty):
+        """
+        对当前矩阵应用平移变换。
+        """
+        translation_matrix = np.array([
+            [1, 0, tx],
+            [0, 1, ty],
+            [0, 0, 1]
+        ])
+        # 左乘平移矩阵
+        self.matrix = translation_matrix @ self.matrix
+        return self
+
+    def apply_rotation(self, theta):
+        """
+        对当前矩阵应用旋转变换。
+        """
+        cos_theta = np.cos(theta)
+        sin_theta = np.sin(theta)
+        rotation_matrix = np.array([
+            [cos_theta, -sin_theta, 0],
+            [sin_theta, cos_theta, 0],
+            [0, 0, 1]
+        ])
+        # 左乘旋转矩阵
+        self.matrix = rotation_matrix @ self.matrix
+        return self
+
+    def apply_scaling(self, sx, sy):
+        """
+        对当前矩阵应用缩放变换。
+        """
+        scaling_matrix = np.array([
+            [sx, 0, 0],
+            [0, sy, 0],
+            [0, 0, 1]
+        ])
+        # 左乘缩放矩阵
+        self.matrix = scaling_matrix @ self.matrix
+        return self
+
+    def reset(self):
+        """
+        将矩阵重置为单位矩阵。
+        """
+        self.matrix = np.identity(3)
+        return self
+
+    def get_matrix(self):
+        """
+        返回当前矩阵。
+        """
+        return self.matrix
+
+    def __repr__(self):
+        """
+        矩阵的字符串表示。
+        """
+        return f"Matrix2D(\n{self.matrix}\n)"
+
+
+
 
 def draw_orgin_axes(fangda=10,step=10,textstep=1,textsize=13,suojin=30):
     global fangdaxishu
@@ -259,10 +335,12 @@ def screen_draw_surface(floor):
         thedic = surfacedic[sf]
         if thedic['floor']!=floor:
             continue
+        #=============读取位置信息（列表）===============
         weizhi = thedic['local']
-        if not isinstance(weizhi, np.ndarray):
+        if not isinstance(weizhi, np.ndarray): #如果不是NP数组(矩阵)
             weizhi = np.array(weizhi,dtype=float)
         vertices = weizhi
+        # ===========================================
         surface_drawed.append(sf)
         surface_drawed[-1] = py5.create_shape()
 
@@ -301,23 +379,26 @@ def screen_draw():
     for f in range(0,3):
         screen_draw_surface(f)
         screen_drawlines_detail(f)
-def save_suface_algo():
-    y1,y2,x1,x2=1,2,3,4
-    k=(y1-y2)/(x1-x2)
-    b=y1-k*x1
-    back=str(k)+"x+"+str(b)
-    #一个多边形外接圆圆心：所有顶点的平均值
-    #===============================
-    chain = "A-B-C-D"
+def trans_chain_to_letterlist(chain):
     nodes = chain.split("-")  # 将链式结构分解为节点列表["A", "B", "C"]
     # 生成相邻对
     pairs = [(nodes[i], nodes[i + 1]) for i in range(len(nodes) - 1)]
     # 加入首尾连接
     pairs.append((nodes[-1], nodes[0]))# 结果: [('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A')]
     formatted_pairs = [f"{a}-{b}" for a, b in pairs]
-    print(formatted_pairs[1]+":"+back)
-
-
+    return formatted_pairs
+#给定一个字符串A-B-C将它切割成[A,B][B,C][C,A]返回
+def Local_to_Matrix(Chain):
+    global surfacedic
+    print(surfacedic[Chain]['local'])
+    vertices = np.array(surfacedic[Chain]['local'])
+    homogeneous_vertices = np.hstack([vertices, np.ones((vertices.shape[0], 1))])
+    return homogeneous_vertices
+#给定字符串表示 返回一个齐次坐标矩阵
+def Matrix_to_local(matrix):
+    cartesian_vertices = matrix[:, :-1]
+    return cartesian_vertices
+#给定矩阵 返回列表型np.array 非齐次坐标矩阵
 
 def ceshi2():
     listceshi=[]
@@ -338,31 +419,94 @@ def ceshi3():
                   strokeweight=random.randint(1,10))
     #print(pointdic)
 
-save_suface_algo()
+def is_point_in_apolx(polx, P):
+    """
+       判断点 P 是否在 polx 中（包括在边上）
+       polx: 多边形的顶点矩阵 [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+       P: 点的坐标 [x, y]
+       return: 'inside' 如果点在内部, 'on_edge' 如果点在边上, 'outside' 如果点在外部
+    """
+    #应当检查符号chain，给定的四边形是否已经闭合，若已经闭合 不可以用下文的
+    #polx[(i + 1) % len(polx)]
+    #而应该改用
+    #polx[i+1]
+    def cross_product(A, B, P):
+        # 计算叉积
+        A = np.array(A)
+        B = np.array(B)
+        P = np.array(P)
+        AB=B-A
+        AP=P-A
+        return np.cross(AB,AP)
+
+    def is_point_on_segment(A, B, P):
+        """
+        判断点 P 是否在线段 AB 上
+        :param A: 线段起点 [x1, y1]
+        :param B: 线段终点 [x2, y2]
+        :param P: 待检测点 [x, y]
+        :return: True 如果 P 在线段 AB 上, 否则 False
+        """
+        # 叉积为 0 且点在线段范围内
+        A = np.array(A)
+        B = np.array(B)
+        P = np.array(P)
+        cross = cross_product(A, B, P)
+        # 判断叉积是否为 0
+        if abs(cross) > 1e-10:  # 允许微小误差
+            return False
+        # 判断是否在范围内
+        dot_product = np.dot(P - A, B - A)  # 投影点是否在 A->B 的方向上
+        squared_length = np.dot(B - A, B - A)  # AB 的平方长度
+        return 0 <= dot_product <= squared_length
+
+    # 检查每条边
+    on_edge = False
+    signs = []
+    for i in range(len(polx)):
+        A = polx[i]
+        B = polx[(i + 1) % len(polx)]  # 四边形是闭合的
+        if is_point_on_segment(A, B, P):  # 点在边上
+            on_edge = True
+        signs.append(cross_product(A, B, P))
+
+    # 检查所有符号是否一致
+    if all(s > 0 for s in signs) or all(s < 0 for s in signs):
+        return 'inside' if not on_edge else 'on_edge'
+    return 'on_edge' if on_edge else 'outside'
+#返回值：'inside' 内部, 'on_edge' 点在多边形的边上, 'outside' 外部
+
+print(trans_chain_to_letterlist('A-B-C-D-E'))
 #ceshi2()
 print (pointdic)
 #print(save_surface("A-C-D-E-M6-A7"))
 #print(save_surface("D6-E2-M2-A1",color=(0,0,0)))
 print(surfacedic)
-
+print(is_point_in_apolx([[-100,0],[100,0],[0,100]],[0,100]))
 #ceshi3()
 #screen_drawlines()
 
+# 示例
 
-
+# 一个多边形外接圆圆心：所有顶点的平均值
 #接下来
 
 #把线条（函数直线）储存下来
 
+#新的子程序：用函数（直线）把图形切割
+
 #增加一个通过[x,y]创建线段的子程序：
 #储存线段加一个判断，如果线段在【点集】中，使用字母，如果不在的话创建字母
-
+#如果点 𝑃在四边形内部，则点𝑃对每条边的叉积结果的符号应该是相同的。
 #为平面创建一个子平面来播放动画
 
 #需求：
 #将代码修改成 给定Fold symmetry，pattern，Disorder
 #返回一个字典形 {形状A：[（x,y）,（z，h）][(a,b),(c,d)]，形状B:……}
 
+'''    k=(y1-y2)/(x1-x2)
+    b=y1-k*x1
+    '''
 
 
 
