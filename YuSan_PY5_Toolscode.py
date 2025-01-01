@@ -11,14 +11,15 @@ from numba.core.cgutils import ifnot
 from numba.cuda import local
 from py5 import stroke, color, vertices
 from pygments.lexer import words
-
+import sympy as sym
 pointdic={}
 letterlist = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 A-Z
+a_letterlist=[chr(i) for i in range(97, 123)]  # ASCII 范围 97 到 122
 nowletterlist=letterlist[:]
-linedic={}
+line_segment_dic={}
 surfacedic={}
 surface_drawed=[]
-
+line_dic={}
 
 import numpy as np
 
@@ -91,6 +92,62 @@ class Matrix2D:
         return f"Matrix2D(\n{self.matrix}\n)"
 
 
+
+
+
+
+#================创建多边形操作================
+def get_nextpot_bycos(A, B, cosR):
+    VeA = sym.Matrix([[A[0]], [A[1]]])  # 列向量
+    VeB = sym.Matrix([[B[0]], [B[1]]])  # 列向量
+    VeC = sym.Matrix([sym.symbols('x', real=True), sym.symbols('y', real=True)])  # 列向量 (x, y)
+    R = (VeA - VeB).norm()
+    print("R:", R.evalf())
+    eq1 = sym.Eq((VeA - VeC).norm(), (VeA - VeB).norm())  # AB=AC=R
+    eq2 = sym.Eq((VeA - VeC).dot(VeA - VeB), R * R * cosR)  # 向量点积公式：（A - C）dot(A - B) =∣AC∣*∣AB∣⋅cos(Angel)
+    C = sym.solve([eq1, eq2], VeC)
+    return (C)
+# 给定点A和B，AB,AC之间夹角cosR 求解C
+# 【准备拓展】：给定点A和B，存在一些可能的夹角（一组列表），求所有可能解
+# for cosR in cosR_list:
+# 如果A,B不是四（多）边形临边而是对边的情况下↑↑↑↑无法求解
+def get_everypoint(A, B, ang):
+    jieguo = []
+    jieguo.append(B)
+
+    def cal_times(ang):
+        times = (ang - 1 + 2 - 1) // 2
+        return (times)
+
+    times = cal_times(ang)
+    print(ang, "角(边)形需要计算次数：", times)
+    eachradio = 2 * np.pi / ang
+    for i in range(1, cal_times(ang) + 1):
+        inputcosR = np.cos(eachradio * i)
+        back = get_nextpot_bycos(A, B, inputcosR)
+        jieguo.append(back[0])
+        if len(back) != 1:
+            jieguo.append(back[1])
+        print("循环：", i, "计算结果：", back)
+
+    def change_shunxu(alist):
+        lennum = len(alist)
+        ou = range(0, lennum, 2)
+        ji = range(1, lennum, 2)
+        ji = ji[::-1]
+        linb = list(ou) + list(ji)
+        print(linb)
+        newlist = []
+        for i in range(lennum):
+            newlist.append(alist[linb[i]])
+        print(newlist)
+        return (newlist)
+
+    reallist = change_shunxu(jieguo)
+    return (reallist)
+# ↑通过给定【Center】：A，【AskPoint】：B，ang:【边数】
+# 返回一个列表型，这个ang边形的点集
+#============================================
 
 
 def draw_orgin_axes(fangda=10,step=10,textstep=1,textsize=13,suojin=30):
@@ -183,45 +240,9 @@ def easyread_to_real():
     print()
 #如果格式不会会报错
 
-def droppoint_group_in_note(apointgroup):
-    back=[]
-    for i in apointgroup:
-        if not isinstance(i,list):
-            if not isinstance(i,tuple):
-                ValueError("data is not list or tuple")
-        if len(i)==2:
-            back.append(droppoint_in_note(i))
-        else:
-            ValueError("data is not:([x,y],(x,y),(x,y))")
-    return back
-#如果成功会返回一个代号列表[A,B,C,D]
-#如果格式不会会报错
-def droppoint_in_note(apoint):
-    global letterlist
-    global nowletterlist
-    global pointdic
-    if len(nowletterlist)==0:
-        if len(letterlist[-1])==1:
-            moreletterlist=[f"{chr(i)}1" for i in range(65, 91)]
-            letterlist=letterlist+moreletterlist
-            nowletterlist=moreletterlist
-        else:
-            morenum=str(int(letterlist[-1][1:])+1)
-            moreletterlist = [chr(i)+morenum for i in range(65, 91)]
-            letterlist = letterlist + moreletterlist
-            nowletterlist = moreletterlist
-    if list_depth(apoint)==1 and len(apoint)==2:
-        back = nowletterlist[0]
-        pointdic[nowletterlist[0]] = apoint
-        del nowletterlist[0]
-        return back
-    else:
-        print (list_depth(apoint),len(apoint))
 
-        raise ValueError("Data must be a list[x,y]or(x,y)")  # 抛出 ValueError 异常
-#如果格式不会会报错
-#成功返回一个字母代号
-
+#================点线面存取操作================
+#////////////《点操作》////////////
 def removepoint_group(p_group):
     if list_depth(p_group) == 1:
         for i in p_group:
@@ -282,30 +303,156 @@ def removepoint_by_xy(listxy):
     else:
         return ("mei zhao dao")
 #如果找不到会有返回值
+def droppoint_group_in_note(apointgroup):
+    back=[]
+    for i in apointgroup:
+        if not isinstance(i,list):
+            if not isinstance(i,tuple):
+                ValueError("data is not list or tuple")
+        if len(i)==2:
+            back.append(droppoint_in_note(i))
+        else:
+            ValueError("data is not:([x,y],(x,y),(x,y))")
+    return back
+#如果成功会返回一个代号列表[A,B,C,D]
+#如果格式不会会报错
+def droppoint_in_note(apoint):
+    global letterlist
+    global nowletterlist
+    global pointdic
+    if len(nowletterlist)==0:
+        if len(letterlist[-1])==1:
+            moreletterlist=[f"{chr(i)}1" for i in range(65, 91)]
+            letterlist=letterlist+moreletterlist
+            nowletterlist=moreletterlist
+        else:
+            morenum=str(int(letterlist[-1][1:])+1)
+            moreletterlist = [chr(i)+morenum for i in range(65, 91)]
+            letterlist = letterlist + moreletterlist
+            nowletterlist = moreletterlist
+    if list_depth(apoint)==1 and len(apoint)==2:
+        back = nowletterlist[0]
+        pointdic[nowletterlist[0]] = apoint
+        del nowletterlist[0]
+        return back
+    else:
+        print (list_depth(apoint),len(apoint))
 
-def find_same_in_dic(d,seevaule=False):
-    value_to_keys = defaultdict(list)
-    for key, value in d.items():
-        value_to_keys[tuple(value)].append(key)  # 将键分组到相同值的列表中
-    # 创建一个字典value_to_keys，值作为键，键作为值（存储列表）
-    if seevaule==False:
-       duplicates = [keys for value, keys in value_to_keys.items() if len(keys) > 1]
-       return duplicates
-    duplicates = {value: keys for value, keys in value_to_keys.items() if len(keys) > 1}  # 只保留有重复的值
-    return duplicates
-#找到字典中相同的值，返回一个列表[[A,B,C],[D,E,F]]
-#seevaule=True 返回{"[A,B,C]":[1,3],"[D,E]":[2,4]}
+        raise ValueError("Data must be a list[x,y]or(x,y)")  # 抛出 ValueError 异常
+#如果格式不会会报错
+#成功返回一个字母代号
 
-def save_line (apletter,bpletter,floor=0,color=(0,0,0,255),strokeweight=3,visible=True):
-    global linedic
+#////////////《线操作》////////////
+def save_line_segment (Aletter,Bletter,floor=0,color=(0,0,0,255),strokeweight=3,visible=True):
+    global line_segment_dic
     inf={}
-    inf["location"]=list(pointdic[apletter])+list(pointdic[bpletter])
+    inf["location"]=list(pointdic[Aletter])+list(pointdic[Bletter])
     inf["floor"] = floor
     inf["color"]=color
     inf["stroke_weight"] = strokeweight
     inf["visible"]=visible
-    linedic[apletter+"-"+bpletter]=inf
+    line_segment_dic[Aletter+"-"+Bletter]=inf
+#有图层高度floor
+def save_line(A,B,C):
+    global line_dic
+    print()
+#直线：ax+by+c=0
+#***还没写***
+def line_segment_intersection(Aline, Bline):
+    """
+    使用 numpy 计算两条线段的交点
+    :param A1: 线段 A 的起点 (x1, y1)
+    :param A2: 线段 A 的终点 (x2, y2)
+    :param B1: 线段 B 的起点 (x3, y3)
+    :param B2: 线段 B 的终点 (x4, y4)
+    :return: 交点坐标 (x, y)，如果没有交点返回 None
+    """
+    x1, y1 = Aline[0]
+    x2, y2 = Aline[1]
+    x3, y3 = Bline[0]
+    x4, y4 = Bline[1]
 
+    # 创建系数矩阵 A@缩小量=b
+    A = np.array([[x2 - x1, x3 - x4], [y2 - y1, y3 - y4]])
+    b = np.array([x3 - x1, y3 - y1])
+
+    # 计算行列式
+    det = np.linalg.det(A)
+
+    # 判断是否平行或共线
+    if abs(det) < 1e-10:  # 行列式接近 0，表示两条线段平行或共线
+        return None
+
+    # 解线性方程组
+    t, s = np.linalg.solve(A, b)
+
+    # 判断参数 t 和 s 是否在 [0, 1] 范围内
+    if 0 <= t <= 1 and 0 <= s <= 1:
+        # 计算交点坐标
+        intersection_x = x1 + t * (x2 - x1)
+        intersection_y = y1 + t * (y2 - y1)
+        return (intersection_x, intersection_y)
+
+    return None  # 如果 t 或 s 不在范围内，则没有交点
+#矩阵方法 查找两条线段交点，无交点返回None
+def intersection_2_line_segment(Aline_S, Bline_S):
+    Ax1, Ay1 = Aline_S[0]
+    Ax2, Ay2 = Aline_S[1]
+    Bx1, By1 = Bline_S[0]
+    Bx2, By2 = Bline_S[1]
+
+    # 检查线段投影范围是否重叠（快速排除法）
+    rangeX = max(min(Ax1, Ax2), min(Bx1, Bx2)), min(max(Ax1, Ax2), max(Bx1, Bx2))
+    rangeY = max(min(Ay1, Ay2), min(By1, By2)), min(max(Ay1, Ay2), max(By1, By2))
+    if rangeX[0] > rangeX[1] or rangeY[0] > rangeY[1]:
+        return None  # 没有重叠，线段不可能相交
+
+    # 计算直线的斜率和截距
+    if Ax1 == Ax2:  # 第一条线垂直
+        k_A, b_A = None, Ax1
+        print(f'A:x={b_A}')
+    else:
+        k_A = (Ay1 - Ay2) / (Ax1 - Ax2)
+        b_A = Ay1 - k_A * Ax1
+        if abs(k_A) == 0:
+            print(f'A:y={b_A}')
+        else:
+            print(f'A:y={k_A}x+{b_A}')
+
+    if Bx1 == Bx2:  # 第二条线垂直
+        k_B, b_B = None, Bx1
+        print(f'B:x={b_A}')
+    else:
+        k_B = (By1 - By2) / (Bx1 - Bx2)
+        b_B = By1 - k_B * Bx1
+        if abs(k_B) ==0:
+            print(f'B:y={b_B}')
+        else:
+            print(f'B:y={k_B}x+{b_B}')
+
+
+    # 检查是否平行
+    if k_A is not None and k_B is not None:  # 两条线都不是垂直线
+        if abs(k_A - k_B) < 1e-10:  # 斜率相等，平行
+            return None
+        # 计算交点
+        x = (b_B - b_A) / (k_A - k_B)
+        y = k_A * x + b_A
+    elif k_A is None:  # 第一条线垂直
+        x = Ax1
+        y = k_B * Ax1 + b_B
+    elif k_B is None:  # 第二条线垂直
+        x = b_B
+        y = k_A * x + b_A
+
+    # 检查交点是否在两条线段的范围内
+    if rangeX[0] <= x <= rangeX[1] and rangeY[0] <= y <= rangeY[1]:
+        return x, y
+    else:
+        return None  # 交点不在线段范围内
+#经典方法 查找两条线段交点，无交点返回None
+
+#////////////《面操作》////////////
 def save_surface(chain_of_point,floor=0,color=(200,200,20,255),fill=False,stroke=None,stroke_color=(0,0,0)):
     global pointdic
     global surfacedic
@@ -326,100 +473,67 @@ def save_surface(chain_of_point,floor=0,color=(200,200,20,255),fill=False,stroke
     nowdic['stroke_color']=py5.color(*stroke_color)
     surfacedic[chain_of_point]=nowdic
     return surf_pointgroup
+def split_surface_by_line(vertices, line_params):
+    """
+    分割多边形为两个子多边形
+    :param vertices: 原始多边形顶点矩阵 (n, 2)
+    :param line_params: 直线参数 (a, b, c)，表示 ax + by + c = 0
+    :return: 两个子多边形的顶点矩阵，如果不存在切分则返回 None
+    """
+    a, b, c = line_params
+    n = len(vertices)
+    side = []
+    intersections = []
+    new_vertices_a = []
+    new_vertices_b = []
 
-def screen_draw_surface(floor):
-    global surfacedic
-    global surface_drawed
-    allsurfacelist=surfacedic.keys()
-    for sf in allsurfacelist:
-        thedic = surfacedic[sf]
-        if thedic['floor']!=floor:
-            continue
-        #=============读取位置信息（列表）===============
-        weizhi = thedic['local']
-        if not isinstance(weizhi, np.ndarray): #如果不是NP数组(矩阵)
-            weizhi = np.array(weizhi,dtype=float)
-        vertices = weizhi
-        # ===========================================
-        surface_drawed.append(sf)
-        surface_drawed[-1] = py5.create_shape()
+    # 判断每个点在直线的哪一侧
+    for i in range(n):
+        x, y = vertices[i]
+        side.append(a * x + b * y + c)
 
-        surface_drawed[-1].begin_shape()
-        surface_drawed[-1].fill(thedic['color'])
-        if thedic['stroke'] == None:
-            surface_drawed[-1].no_stroke()
-        else:
-            surface_drawed[-1].stroke(thedic['stroke_color'])
-        if thedic['fill'] == False:
-            surface_drawed[-1].no_fill()
-        surface_drawed[-1].fill(thedic['color'])
-        surface_drawed[-1].vertices(vertices)
-        surface_drawed[-1].end_shape()
-        py5.shape(surface_drawed[-1])
-def screen_drawlines(color=0,strok_weight=2):
-    py5.stroke(color)
-    py5.stroke_weight(strok_weight)
-    pointlist=[]
-    for key,value in linedic.items():
-        pointlist.append(value["location"])
-    py5.lines(np.array(pointlist,dtype=np.float32))
-    #这里lines接收的是Np中的四维浮点数组[a b c d]
-def screen_drawlines_detail(floor):
-    for key, val in linedic.items():
-        if val['floor']!=floor:
-            continue
-        if val['visible']==False:
-            continue
-        color=val['color']
-        py5.stroke(py5.color(*color))
-        strokeweigh=val['stroke_weight']
-        py5.stroke_weight(strokeweigh)
-        py5.line(*val['location'])
-def screen_draw():
-    for f in range(0,3):
-        screen_draw_surface(f)
-        screen_drawlines_detail(f)
-def trans_chain_to_letterlist(chain):
-    nodes = chain.split("-")  # 将链式结构分解为节点列表["A", "B", "C"]
-    # 生成相邻对
-    pairs = [(nodes[i], nodes[i + 1]) for i in range(len(nodes) - 1)]
-    # 加入首尾连接
-    pairs.append((nodes[-1], nodes[0]))# 结果: [('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A')]
-    formatted_pairs = [f"{a}-{b}" for a, b in pairs]
-    return formatted_pairs
-#给定一个字符串A-B-C将它切割成[A,B][B,C][C,A]返回
-def Local_to_Matrix(Chain):
-    global surfacedic
-    print(surfacedic[Chain]['local'])
-    vertices = np.array(surfacedic[Chain]['local'])
-    homogeneous_vertices = np.hstack([vertices, np.ones((vertices.shape[0], 1))])
-    return homogeneous_vertices
-#给定字符串表示 返回一个齐次坐标矩阵
-def Matrix_to_local(matrix):
-    cartesian_vertices = matrix[:, :-1]
-    return cartesian_vertices
-#给定矩阵 返回列表型np.array 非齐次坐标矩阵
+    # 如果所有点都在直线的同一侧，直接返回 None
+    if all(s >= 0 for s in side) or all(s <= 0 for s in side):
+        return None
 
-def ceshi2():
-    listceshi=[]
-    for i in range(0,20000):
-        listceshi.append([random.randint(-200,200),random.randint(-200,200)])
-    back=droppoint_group_in_note(listceshi)
-    for i in find_same_in_dic(pointdic,False):
-        i=i[1:]
-        removepoint_group(i)
-def ceshi3():
-    global linedic
-    global pointdic
-    linedic={}
-    for i in range(50):
-        save_line(random.choice(list(pointdic.keys())), random.choice(list(pointdic.keys())),
-                  floor=random.randint(0,3),
-                  color=tuple(np.random.randint(0, 200, size=3)),
-                  strokeweight=random.randint(1,10))
-    #print(pointdic)
+    # 遍历每条边，判断是否与直线相交
+    for i in range(n):
+        curr = vertices[i]
+        next = vertices[(i + 1) % n]
+        curr_side = side[i]
+        next_side = side[(i + 1) % n]
 
-def is_point_in_apolx(polx, P):
+        if curr_side >= 0:
+            new_vertices_a.append(curr)
+        if curr_side <= 0:
+            new_vertices_b.append(curr)
+
+        # 检查是否存在交点
+        if curr_side * next_side < 0:
+            # 计算交点
+            x1, y1 = curr
+            x2, y2 = next
+            t = - (a * x1 + b * y1 + c) / (a * (x2 - x1) + b * (y2 - y1))
+            intersection = (x1 + t * (x2 - x1), y1 + t * (y2 - y1))
+            intersections.append(intersection)
+
+            # 交点属于两个多边形
+            new_vertices_a.append(intersection)
+            new_vertices_b.append(intersection)
+
+    # 如果没有交点，则无法切分多边形，返回 None
+    if not intersections:
+        return None
+
+    # 排序顶点以构成闭合多边形
+    new_vertices_a = np.array(new_vertices_a)
+    new_vertices_b = np.array(new_vertices_b)
+
+    return [new_vertices_a, new_vertices_b]
+#直线接受[a,b,c] ax+by+c=0
+#vertices接受一个点坐标集合
+#存在返回[集合A,集合B] 不存在返回None
+def is_point_in_surface(polx, P):
     """
        判断点 P 是否在 polx 中（包括在边上）
        polx: 多边形的顶点矩阵 [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
@@ -475,6 +589,138 @@ def is_point_in_apolx(polx, P):
         return 'inside' if not on_edge else 'on_edge'
     return 'on_edge' if on_edge else 'outside'
 #返回值：'inside' 内部, 'on_edge' 点在多边形的边上, 'outside' 外部
+#polx接受列表型 也接受非齐次坐标矩阵
+def SurfChain_to_HomoMatrix(Chain):
+    global surfacedic
+    print(surfacedic[Chain]['local'])
+    vertices = np.array(surfacedic[Chain]['local'])
+    homogeneous_vertices = np.hstack([vertices, np.ones((vertices.shape[0], 1))])
+    return homogeneous_vertices
+#给定平面字符串表示 返回一个齐次坐标矩阵
+def HomoMatrix_to_local(matrix):
+    cartesian_vertices = matrix[:, :-1]
+    return cartesian_vertices
+#给定齐次坐标矩阵 返回非齐次坐标矩阵 列表型np.array
+
+#////////////《常用操作》////////////
+def point_to_line_distance(point, line_params):
+    """
+    计算点到直线的垂直距离
+    :param point: 点的坐标 (x0, y0)
+    :param line_params: 直线的参数 (a, b, c)，表示 ax + by + c = 0
+    :return: 点到直线的垂直距离
+    """
+    x0, y0 = point
+    a, b, c = line_params
+
+    # 计算距离公式
+    distance = abs(a * x0 + b * y0 + c) / math.sqrt(a ** 2 + b ** 2)
+    return distance
+#计算点到直线距离，返回一个数
+def find_same_in_dic(d,seevaule=False):
+    value_to_keys = defaultdict(list)
+    for key, value in d.items():
+        value_to_keys[tuple(value)].append(key)  # 将键分组到相同值的列表中
+    # 创建一个字典value_to_keys，值作为键，键作为值（存储列表）
+    if seevaule==False:
+       duplicates = [keys for value, keys in value_to_keys.items() if len(keys) > 1]
+       return duplicates
+    duplicates = {value: keys for value, keys in value_to_keys.items() if len(keys) > 1}  # 只保留有重复的值
+    return duplicates
+#找到字典中相同的值，返回一个列表[[A,B,C],[D,E,F]]
+#seevaule=True 返回{"[A,B,C]":[1,3],"[D,E]":[2,4]}
+#d接受的参数是一个字典形
+def trans_chain_to_letterlist(chain):
+    nodes = chain.split("-")  # 将链式结构分解为节点列表["A", "B", "C"]
+    # 生成相邻对
+    pairs = [(nodes[i], nodes[i + 1]) for i in range(len(nodes) - 1)]
+    # 加入首尾连接
+    pairs.append((nodes[-1], nodes[0]))# 结果: [('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A')]
+    formatted_pairs = [f"{a}-{b}" for a, b in pairs]
+    return formatted_pairs
+#给定一个字符串A-B-C将它切割成[A,B][B,C][C,A]返回
+#=========================================
+
+
+#=============绘图渲染操作===================
+def screen_draw_surface(floor):
+    global surfacedic
+    global surface_drawed
+    allsurfacelist=surfacedic.keys()
+    for sf in allsurfacelist:
+        thedic = surfacedic[sf]
+        if thedic['floor']!=floor:
+            continue
+        #=============读取位置信息（列表）===============
+        weizhi = thedic['local']
+        if not isinstance(weizhi, np.ndarray): #如果不是NP数组(矩阵)
+            weizhi = np.array(weizhi,dtype=float)
+        vertices = weizhi
+        # ===========================================
+        surface_drawed.append(sf)
+        surface_drawed[-1] = py5.create_shape()
+
+        surface_drawed[-1].begin_shape()
+        surface_drawed[-1].fill(thedic['color'])
+        if thedic['stroke'] == None:
+            surface_drawed[-1].no_stroke()
+        else:
+            surface_drawed[-1].stroke(thedic['stroke_color'])
+        if thedic['fill'] == False:
+            surface_drawed[-1].no_fill()
+        surface_drawed[-1].fill(thedic['color'])
+        surface_drawed[-1].vertices(vertices)
+        surface_drawed[-1].end_shape()
+        py5.shape(surface_drawed[-1])
+def screen_drawlines(color=0,strok_weight=2):
+    py5.stroke(color)
+    py5.stroke_weight(strok_weight)
+    pointlist=[]
+    for key,value in line_segment_dic.items():
+        pointlist.append(value["location"])
+    py5.lines(np.array(pointlist,dtype=np.float32))
+    #这里lines接收的是Np中的四维浮点数组[a b c d]
+def screen_drawlines_detail(floor):
+    for key, val in line_segment_dic.items():
+        if val['floor']!=floor:
+            continue
+        if val['visible']==False:
+            continue
+        color=val['color']
+        py5.stroke(py5.color(*color))
+        strokeweigh=val['stroke_weight']
+        py5.stroke_weight(strokeweigh)
+        py5.line(*val['location'])
+def screen_draw():
+    for f in range(0,3):
+        screen_draw_surface(f)
+        screen_drawlines_detail(f)
+#=========================================
+
+
+
+
+
+
+def ceshi2():
+    listceshi=[]
+    for i in range(0,2000):
+        listceshi.append([random.randint(-200,200),random.randint(-200,200)])
+    back=droppoint_group_in_note(listceshi)
+    for i in find_same_in_dic(pointdic,False):
+        i=i[1:]
+        removepoint_group(i)
+def ceshi3():
+    global line_segment_dic
+    global pointdic
+    line_segment_dic={}
+    for i in range(50):
+        save_line_segment(random.choice(list(pointdic.keys())), random.choice(list(pointdic.keys())),
+                  floor=random.randint(0,3),
+                  color=tuple(np.random.randint(0, 200, size=3)),
+                  strokeweight=random.randint(1,10))
+    #print(pointdic)
+
 
 print(trans_chain_to_letterlist('A-B-C-D-E'))
 #ceshi2()
@@ -482,32 +728,49 @@ print (pointdic)
 #print(save_surface("A-C-D-E-M6-A7"))
 #print(save_surface("D6-E2-M2-A1",color=(0,0,0)))
 print(surfacedic)
-print(is_point_in_apolx([[-100,0],[100,0],[0,100]],[0,100]))
+print(is_point_in_surface(np.array([[-100,0],[100,0],[0,100]]),[0,100]))
 #ceshi3()
 #screen_drawlines()
 
 # 示例
 
-# 一个多边形外接圆圆心：所有顶点的平均值
+
+A=[[0,1],[3,3]]
+B=[[1,1.2],[3,3]]
+C=[[1.5,0],[1.5,100]]
+D=[[0,2],[100,2]]
+
+# 示例
+
+
+intersection = line_segment_intersection(C,D)
+if intersection:
+    print("交点坐标：", intersection)
+else:
+    print("没有交点")
+print (intersection_2_line_segment(D,A))
+
 #接下来
 
-#把线条（函数直线）储存下来
+#应该制作查重优化机制 如果点重合 那么修改的不仅是点字典还要修改直线字典和面字典
 
-#新的子程序：用函数（直线）把图形切割
+#save_line()把线条（函数直线）储存下来
 
-#增加一个通过[x,y]创建线段的子程序：
+#增加一个参数save_surface_by_pointlist()
+
+#增加一个通过pointlist创建线段的子程序：
 #储存线段加一个判断，如果线段在【点集】中，使用字母，如果不在的话创建字母
 #如果点 𝑃在四边形内部，则点𝑃对每条边的叉积结果的符号应该是相同的。
 #为平面创建一个子平面来播放动画
 
-#需求：
-#将代码修改成 给定Fold symmetry，pattern，Disorder
-#返回一个字典形 {形状A：[（x,y）,（z，h）][(a,b),(c,d)]，形状B:……}
+#split_surface_by_line（）是GPT生成的 应该修改使其符合规范（利用trans_chain_to_letterlist()和line_segment_intersection()）
 
-'''    k=(y1-y2)/(x1-x2)
-    b=y1-k*x1
-    '''
+#储存平面时 应当添加一个参数center:重心:是所有顶点坐标的平均值
 
+#对平面进行仿射变换操作，其中旋转操作（以中心center为轴）
+
+#Pattern（图案、模式），Disorder（无序）
+#Pattern1：百叶窗消失：以多边形任意一条边（比较长的）创造一组直线切割多边形 形成条纹状，切割距离可以与斐波那契数列成反比例
 
 
 
