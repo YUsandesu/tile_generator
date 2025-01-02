@@ -1,5 +1,8 @@
+from audioop import error
+
 import numpy as np
 import py5
+from bokeh.core.property.vectorization import value
 from conda.gateways.repodata import RepoInterface
 from cytoolz import remove
 from docutils.utils.math.latex2mathml import letters
@@ -20,8 +23,7 @@ line_segment_dic={}
 surfacedic={}
 surface_drawed=[]
 line_dic={}
-
-import numpy as np
+now_a_list=[]
 
 class Matrix2D:
     def __init__(self):
@@ -147,9 +149,9 @@ def get_everypoint(A, B, ang):
     return (reallist)
 # ↑通过给定【Center】：A，【AskPoint】：B，ang:【边数】
 # 返回一个列表型，这个ang边形的点集
-#============================================
+#===========================================
 
-
+#================创建易读坐标系================
 def draw_orgin_axes(fangda=10,step=10,textstep=1,textsize=13,suojin=30):
     global fangdaxishu
     py5.push_matrix()
@@ -239,7 +241,7 @@ def tans_to_easyread (listxy):
 def easyread_to_real():
     print()
 #如果格式不会会报错
-
+#===========================================
 
 #================点线面存取操作================
 #////////////《点操作》////////////
@@ -353,11 +355,51 @@ def save_line_segment (Aletter,Bletter,floor=0,color=(0,0,0,255),strokeweight=3,
     inf["visible"]=visible
     line_segment_dic[Aletter+"-"+Bletter]=inf
 #有图层高度floor
-def save_line(A,B,C):
+def save_line(k,b,a=1):
     global line_dic
-    print()
-#直线：ax+by+c=0
-#***还没写***
+    detaildic = {}
+    if a==0 and k==0:
+        raise ValueError("a和k不能同时为0，请检查输入")
+    if a==0:
+        strline = f"x={b/-k}"
+        detaildic['str']=strline
+        detaildic['k'] = -1
+        detaildic['b'] = b/-k
+        detaildic['a'] = 0
+    if k==0:
+        strline = f"y={b}"
+        detaildic['str'] = strline
+        detaildic['k'] = 0
+        detaildic['b'] = b
+    if a==1 and k!=0:
+        strline = f"y={k}x+{b}"
+        detaildic['str'] = strline
+        detaildic['k'] = k
+        detaildic['b'] = b
+    line_dic[ask_a_new_letter()]=detaildic
+    return strline
+#函数：ay=kx+b
+def segmentline_to_line(line2plist):
+    x1,x2=line2plist[0][0],line2plist[1][0]
+    y1,y2=line2plist[0][1],line2plist[1][1]
+    if x1==x2 and y1==y2:
+        return 'is not a line,this is a point'
+    if x1==x2:
+       a=0
+       b=x1
+       k=-1
+    else:
+       a=1
+
+    if y1==y2:
+       k=0
+       b=y1
+    if x1!=x2 and y1!=y2:
+       k = (y1 - y2) / (x1 - x2)
+       b = y1 - k * x1
+    str=save_line(k,b,a)
+    return str
+
 def line_segment_intersection(Aline, Bline):
     """
     使用 numpy 计算两条线段的交点
@@ -473,6 +515,12 @@ def save_surface(chain_of_point,floor=0,color=(200,200,20,255),fill=False,stroke
     nowdic['stroke_color']=py5.color(*stroke_color)
     surfacedic[chain_of_point]=nowdic
     return surf_pointgroup
+def save_surface_by_pointlist(apointlist,floor=0,color=(200,200,20,255),fill=False,stroke=None,stroke_color=(0,0,0)):
+    theletter=droppoint_group_in_note(apointlist)
+    chain="-".join(theletter)
+    save_surface(chain,floor,color,fill,stroke,stroke_color)
+
+
 def split_surface_by_line(vertices, line_params):
     """
     分割多边形为两个子多边形
@@ -603,6 +651,55 @@ def HomoMatrix_to_local(matrix):
 #给定齐次坐标矩阵 返回非齐次坐标矩阵 列表型np.array
 
 #////////////《常用操作》////////////
+def ask_a_new_letter():
+    global a_letterlist
+    global now_a_list
+    if len(a_letterlist) == 0:
+        if len(now_a_list[-1])==1:
+            # 此时小写字母后面还没有序号
+            a_letterlist = [chr(i)+"1" for i in range(97, 123)]
+        if len(now_a_list[-1])>1:
+            # 此时存在序号，需要判断序号大小
+            xuhao=int(now_a_list[-1][1:])+1
+            a_letterlist = [chr(i) + str(xuhao) for i in range(97, 123)]
+    thekey = a_letterlist.pop(0)
+    now_a_list.append(thekey)
+
+    return thekey
+#从字母集中请求获得一个小写字母，并添加到当前已用集合中
+def del_a_letter(aletter):
+    global a_letterlist
+    global now_a_list
+    if aletter in now_a_list:
+        Sure = True
+        #计算我的num
+        if len(aletter)==1:
+            num=ord(aletter)-97+1
+        if len(aletter)>1:
+            num =(ord(aletter[0])-97+1)+int(aletter[1:])*26
+        surenum=0
+        thisnum = 0
+        while Sure:
+            if surenum >= len( a_letterlist):
+                surenum=-1
+                # print('超出范围 加入到最后')
+                break
+            if len( a_letterlist[surenum]) == 1:
+                # print('没有序号，直接比较')
+                thisnum=ord(a_letterlist[surenum])-97+1
+                if thisnum>num:
+                    break
+            if len(a_letterlist[surenum]) > 1:
+                # 存在序号
+                thisnum=(ord(a_letterlist[surenum][0])-97+1)+int(a_letterlist[surenum][1:])*26
+                if thisnum>num:
+                    break
+            surenum=surenum+1
+        a_letterlist.insert(surenum, aletter)
+        now_a_list.remove(aletter)
+    else:
+        return 'cant find the letter in : now_a_list'
+#从当前已用集合中删除一个小写字母，放回字母集中
 def point_to_line_distance(point, line_params):
     """
     计算点到直线的垂直距离
@@ -640,7 +737,6 @@ def trans_chain_to_letterlist(chain):
     return formatted_pairs
 #给定一个字符串A-B-C将它切割成[A,B][B,C][C,A]返回
 #=========================================
-
 
 #=============绘图渲染操作===================
 def screen_draw_surface(floor):
@@ -695,11 +791,8 @@ def screen_draw():
     for f in range(0,3):
         screen_draw_surface(f)
         screen_drawlines_detail(f)
+
 #=========================================
-
-
-
-
 
 
 def ceshi2():
@@ -720,8 +813,6 @@ def ceshi3():
                   color=tuple(np.random.randint(0, 200, size=3)),
                   strokeweight=random.randint(1,10))
     #print(pointdic)
-
-
 print(trans_chain_to_letterlist('A-B-C-D-E'))
 #ceshi2()
 print (pointdic)
@@ -735,7 +826,7 @@ print(is_point_in_surface(np.array([[-100,0],[100,0],[0,100]]),[0,100]))
 # 示例
 
 
-A=[[0,1],[3,3]]
+A=[[0,3],[3,3]]
 B=[[1,1.2],[3,3]]
 C=[[1.5,0],[1.5,100]]
 D=[[0,2],[100,2]]
@@ -749,14 +840,25 @@ if intersection:
 else:
     print("没有交点")
 print (intersection_2_line_segment(D,A))
-
+save_surface_by_pointlist ([[1,100],[2,200],[3,-100]])
+save_line(3,4)
+segmentline_to_line(A)
+print(surfacedic)
+for i in range(550):
+    A=[[random.randint(-100,100),random.randint(-100,100)],[random.randint(-100,100),random.randint(-100,100)]]
+    # B=[[random.randint(-100,100),random.randint(-100,100)],[random.randint(-100,100),random.randint(-100,100)]]
+    segmentline_to_line(A)
+for i in range (250):
+    ale=random.choice(now_a_list)
+    # print(ale)
+    del_a_letter(ale)
+print(now_a_list)
+print(line_dic.keys())
 #接下来
 
-#应该制作查重优化机制 如果点重合 那么修改的不仅是点字典还要修改直线字典和面字典
+
 
 #save_line()把线条（函数直线）储存下来
-
-#增加一个参数save_surface_by_pointlist()
 
 #增加一个通过pointlist创建线段的子程序：
 #储存线段加一个判断，如果线段在【点集】中，使用字母，如果不在的话创建字母
@@ -768,6 +870,8 @@ print (intersection_2_line_segment(D,A))
 #储存平面时 应当添加一个参数center:重心:是所有顶点坐标的平均值
 
 #对平面进行仿射变换操作，其中旋转操作（以中心center为轴）
+
+#应该制作查重优化机制 如果点重合 那么修改的不仅是点字典还要修改直线字典和面字典
 
 #Pattern（图案、模式），Disorder（无序）
 #Pattern1：百叶窗消失：以多边形任意一条边（比较长的）创造一组直线切割多边形 形成条纹状，切割距离可以与斐波那契数列成反比例
