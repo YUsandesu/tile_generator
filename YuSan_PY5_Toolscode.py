@@ -6,7 +6,12 @@ import sympy as sym
 import math
 
 from IPython.testing.decorators import skipif
+from PyQt5.QtCore import center
+from anyio import value
+from conda.instructions import PRINT
+from numba.core.ir import Raise
 from numpy.matrixlib.defmatrix import matrix
+from py5 import point
 
 pointdic={}
 letterlist = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 A-Z
@@ -110,7 +115,7 @@ def get_nextpot_bycos(A, B, cosR):
     VeB = sym.Matrix([[B[0]], [B[1]]])  # 列向量
     VeC = sym.Matrix([sym.symbols('x', real=True), sym.symbols('y', real=True)])  # 列向量 (x, y)
     R = (VeA - VeB).norm()
-    print("R:", R.evalf())
+    # print("R:", R.evalf())
     eq1 = sym.Eq((VeA - VeC).norm(), (VeA - VeB).norm())  # AB=AC=R
     eq2 = sym.Eq((VeA - VeC).dot(VeA - VeB), R * R * cosR)  # 向量点积公式：（A - C）dot(A - B) =∣AC∣*∣AB∣⋅cos(Angel)
     C = sym.solve([eq1, eq2], VeC)
@@ -128,7 +133,7 @@ def get_everypoint(A, B, ang):
         return (times)
 
     times = cal_times(ang)
-    print(ang, "角(边)形需要计算次数：", times)
+    # print(ang, "角(边)形需要计算次数：", times)
     eachradio = 2 * np.pi / ang
     for i in range(1, cal_times(ang) + 1):
         inputcosR = np.cos(eachradio * i)
@@ -136,7 +141,7 @@ def get_everypoint(A, B, ang):
         jieguo.append(back[0])
         if len(back) != 1:
             jieguo.append(back[1])
-        print("循环：", i, "计算结果：", back)
+        # print("循环：", i, "计算结果：", back)
 
     def change_shunxu(alist):
         lennum = len(alist)
@@ -144,11 +149,11 @@ def get_everypoint(A, B, ang):
         ji = range(1, lennum, 2)
         ji = ji[::-1]
         linb = list(ou) + list(ji)
-        print(linb)
+        # print(linb)
         newlist = []
         for i in range(lennum):
             newlist.append(alist[linb[i]])
-        print(newlist)
+        # print(newlist)
         return (newlist)
 
     reallist = change_shunxu(jieguo)
@@ -351,7 +356,7 @@ def droppoint_in_note(apoint):
 #成功返回一个字母代号
 
 #////////////《线操作》////////////
-def save_Segmentline_by_ABletter (Aletter, Bletter, floor=0, color=(0, 0, 0, 255), strokeweight=3, visible=True):
+def save_Segmentline_by_ABletter (Aletter, Bletter, floor=0, color=py5.color(0, 0, 0, 255), strokeweight=3, visible=True):
     global SegmentLine_dic
     inf={}
     inf["location"]=list(pointdic[Aletter])+list(pointdic[Bletter])
@@ -360,12 +365,13 @@ def save_Segmentline_by_ABletter (Aletter, Bletter, floor=0, color=(0, 0, 0, 255
     inf["stroke_weight"] = strokeweight
     inf["visible"]=visible
     SegmentLine_dic[Aletter + "-" + Bletter]=inf
-def save_Segmentline_by_ABpointxy(Apoint, Bpoint, floor=0, color=(0, 0, 0, 255), strokeweight=3, visible=True):
+def save_Segmentline_by_ABpointxy(Apoint, Bpoint, floor=0, color=py5.color(0, 0, 0, 255), strokeweight=3, visible=True):
     Aletter = droppoint_in_note(Apoint)
     Bletter = droppoint_in_note(Bpoint)
     save_Segmentline_by_ABletter (Aletter, Bletter, floor, color, strokeweight, visible)
     return Aletter+"-"+Bletter
-
+def remove_Segmentline(chain):
+    del SegmentLine_dic[chain]
 #有图层高度floor
 def save_line(k,b,a=1):
     global line_dic
@@ -388,14 +394,18 @@ def save_line(k,b,a=1):
         detaildic['str'] = strline
         detaildic['k'] = k
         detaildic['b'] = b
-    line_dic[ask_a_new_letter()]=detaildic
-    return strline
+    newletter= ask_a_new_letter()
+    line_dic[newletter]=detaildic
+    return newletter
 #函数：ay=kx+b
-def segmentline_to_line(line2plist):
-    x1,x2=line2plist[0][0],line2plist[1][0]
-    y1,y2=line2plist[0][1],line2plist[1][1]
+
+def segmentline_to_line(chain):
+    global pointdic
+    Aletter,Bletter=chain.split('-')
+    x1,x2=pointdic[Aletter][0],pointdic[Bletter][0]
+    y1,y2=pointdic[Aletter][1],pointdic[Bletter][1]
     if x1==x2 and y1==y2:
-        return 'is not a line,this is a point'
+        raise ValueError('is not a line,this is a point')
     if x1==x2:
        a=0
        b=x1
@@ -410,7 +420,32 @@ def segmentline_to_line(line2plist):
        k = (y1 - y2) / (x1 - x2)
        b = y1 - k * x1
     str=save_line(k,b,a)
+    print('segmentline_to_line:',str)
     return str
+#返回一个代号letter
+
+def solve_line(line_letter, x=None, y=None):
+    if x==None and y==None:
+        raise ValueError("x，y都没有输入值 无法计算")
+    global line_dic
+    detail_dic = line_dic[line_letter]
+    if 'a' in detail_dic:
+        the_a=detail_dic['a']
+    else:
+        the_a=1
+
+    the_b,the_k=detail_dic['b'],detail_dic['k']
+    if y==None:
+        if the_a == 0:
+            raise ValueError("无法计算，因为a=0时0y=kx+b 无法计算y")
+        #计算y
+        return  the_k*x+the_b
+    if x == None:
+        #计算x
+        if the_k==0:
+            raise ValueError("无法计算，因为k=0时y=0x+b 无法计算x")
+        return (y-the_b)/the_k
+
 def line_segment_intersection(Aline, Bline):
     """
     使用 numpy 计算两条线段的交点
@@ -448,12 +483,35 @@ def line_segment_intersection(Aline, Bline):
 
     return None  # 如果 t 或 s 不在范围内，则没有交点
 #矩阵方法 查找两条线段交点，无交点返回None
-def intersection_2_line_segment(Aline_S, Bline_S):
+def intersection_2_Segmentline(Aline_S, Bline_S):
     Ax1, Ay1 = Aline_S[0]
     Ax2, Ay2 = Aline_S[1]
     Bx1, By1 = Bline_S[0]
     Bx2, By2 = Bline_S[1]
 
+    if Bx1 == Bx2 and By1==By2 and Ax1==Ax2 and Ay1==Ay2:
+        #raise ValueError('输入了一个点')
+        return Ax1,Ay1
+    if Bx1 == Bx2 and By1==By2:
+        #raise ValueError('B线是一个点')
+        temp_chain = save_Segmentline_by_ABpointxy(Aline_S[0], Aline_S[1])
+        temp_line_letter = segmentline_to_line(temp_chain)
+        if By1 == solve_line(temp_line_letter, x=Bx1) and Bx1 == solve_line(temp_line_letter, y=By1):
+            return Bx1, By1
+        else:
+            return None
+    if Ax1==Ax2 and Ay1==Ay2:
+        #raise ValueError('A线是一个点')
+        temp_chain=save_Segmentline_by_ABpointxy(Bline_S[0],Bline_S[1])
+        temp_line_letter=segmentline_to_line(temp_chain)
+        if Ay1==solve_line(temp_line_letter,x=Ax1) and Ax1==solve_line(temp_line_letter, y=Ay1):
+            return Ax1,Ay1
+        else:
+            return None
+
+
+
+    print ('A:',Aline_S,'B:',Bline_S)
     # 检查线段投影范围是否重叠（快速排除法）
     rangeX = max(min(Ax1, Ax2), min(Bx1, Bx2)), min(max(Ax1, Ax2), max(Bx1, Bx2))
     rangeY = max(min(Ay1, Ay2), min(By1, By2)), min(max(Ay1, Ay2), max(By1, By2))
@@ -461,32 +519,22 @@ def intersection_2_line_segment(Aline_S, Bline_S):
         return None  # 没有重叠，线段不可能相交
 
     # 计算直线的斜率和截距
-    if Ax1 == Ax2:  # 第一条线垂直
+    if Ax1 == Ax2:  # 第一条线和y轴水平
         k_A, b_A = None, Ax1
-        print(f'A:x={b_A}')
     else:
         k_A = (Ay1 - Ay2) / (Ax1 - Ax2)
         b_A = Ay1 - k_A * Ax1
-        if abs(k_A) == 0:
-            print(f'A:y={b_A}')
-        else:
-            print(f'A:y={k_A}x+{b_A}')
-
-    if Bx1 == Bx2:  # 第二条线垂直
+    if Bx1 == Bx2:  # 第二条线和y轴水平
         k_B, b_B = None, Bx1
-        print(f'B:x={b_A}')
     else:
         k_B = (By1 - By2) / (Bx1 - Bx2)
         b_B = By1 - k_B * Bx1
-        if abs(k_B) ==0:
-            print(f'B:y={b_B}')
-        else:
-            print(f'B:y={k_B}x+{b_B}')
+
 
 
     # 检查是否平行
     if k_A is not None and k_B is not None:  # 两条线都不是垂直线
-        if abs(k_A - k_B) < 1e-10:  # 斜率相等，平行
+        if abs(k_A - k_B) < 1e-10:  # 斜率相等，平行，不可能有交点
             return None
         # 计算交点
         x = (b_B - b_A) / (k_A - k_B)
@@ -505,8 +553,80 @@ def intersection_2_line_segment(Aline_S, Bline_S):
         return None  # 交点不在线段范围内
 #经典方法 查找两条线段交点，无交点返回None
 
+def intersection_line_Segmentline(line='a',segline_chain='A-B'):
+    global pointdic
+    global line_dic
+    Aletter,Bletter=segline_chain.split('-')
+    A=pointdic[Aletter]
+    B=pointdic[Bletter]
+    Ax,Ay=A
+    Bx,By=B
+    seg_rangeX, seg_rangeY = [min([Ax,Bx]),max([Ax,Bx])],[min([Ay,By]),max([Ay,By])]
+    print(line_dic[line])
+
+    #根据投影判断是否可能存在交点
+    if not 'a' in line_dic[line]:
+        if line_dic[line]['k']!=0:
+            line_shadow_y1 = line_dic[line]['k'] * seg_rangeX[0] + line_dic[line]['b']
+            line_shadow_y2 = line_dic[line]['k'] * seg_rangeX[1] + line_dic[line]['b']
+            line_shadow_Rangey = [min([line_shadow_y1, line_shadow_y2]), max([line_shadow_y1, line_shadow_y2])]
+            line_shadow_x1 = (seg_rangeY[0] - line_dic[line]['b']) / line_dic[line]['k']
+            line_shadow_x2 = (seg_rangeY[1] - line_dic[line]['b']) / line_dic[line]['k']
+            line_shadow_Rangex = [min([line_shadow_x1, line_shadow_x2]), max([line_shadow_x1, line_shadow_x2])]
+            final_range_x = [max(line_shadow_Rangex[0], seg_rangeX[0]), min(line_shadow_Rangex[1], seg_rangeX[1])]
+            final_range_y = [max(line_shadow_Rangey[0], seg_rangeY[0]), min(line_shadow_Rangey[1], seg_rangeY[1])]
+            print('投影范围：', line_shadow_Rangex, line_shadow_Rangey)
+            print(final_range_x, final_range_y)
+            if final_range_x[0]>final_range_x[1] or final_range_y[0]>final_range_y[1]:
+                #范围无效 不存在交点
+                return None
+            else:
+                if final_range_x[0]==final_range_x[1] and final_range_y[0]==final_range_y[1]:
+                    #raise ValueError('范围仅为一个点')
+                    print('范围仅为一个点')
+                    letter_theline=segmentline_to_line(segline_chain)
+                    print(letter_theline)
+                    if solve_line(letter_theline,x=final_range_x[0])==final_range_y[0]:
+                        #如果把点的x坐标带入直线中，得到的y值刚好是点的y坐标
+
+                        return [final_range_x[0],final_range_y[0]]
+                    else:
+                        return None
+                temp_Ax,temp_Bx=final_range_x[0],final_range_x[1]
+                temp_Ay=solve_line(line,x=temp_Ax)
+                temp_By = solve_line(line, x=temp_Bx)
+                temp_A,temp_B=[temp_Ax,temp_Ay],[temp_Bx,temp_By]
+                inter_point=intersection_2_Segmentline([temp_A,temp_B], [A,B])
+                return inter_point
+        else:
+            #k=0时候，y=b 只需要比较线段的y范围是否包含b
+            if seg_rangeY[0]<=line_dic[line]['b']<=seg_rangeY[1]:
+                value_y=line_dic[line]['b']
+                the_line = segmentline_to_line(segline_chain)
+                value_x = solve_line(the_line, y=value_y)
+                return [value_x, value_y]
+            else:
+                return None
+    else:
+        if line_dic[line]['k']!=0:
+            raise ValueError("a=0 且 k=0 ：输入的是一个点而不是线")
+        #a=0时候,x=b/-k 是一条垂直线 只需要比较线段的x范围是否包含b/-k
+        if seg_rangeY[0] <= line_dic[line]['b']/-line_dic[line]['k'] <= seg_rangeY[1]:
+            value_x=line_dic[line]['b']/-line_dic[line]['k']
+            the_line=segmentline_to_line(segline_chain)
+            value_y=solve_line(the_line,x=value_x)
+            return [value_x,value_y]
+        else:
+            return None
+
+
+    print(A,B)
+    print(seg_rangeX,seg_rangeY)
+
+
+
 #////////////《面操作》////////////
-def save_surface(chain_of_point,floor=0,color=(200,200,20,255),fill=False,stroke=None,stroke_color=(0,0,0)):
+def save_surface(chain_of_point,floor=0,color=py5.color(200,200,20,255),fill=False,stroke=None,stroke_color=py5.color(0,0,0)):
     global pointdic
     global surfacedic
     global SegmentLine_dic
@@ -519,7 +639,6 @@ def save_surface(chain_of_point,floor=0,color=(200,200,20,255),fill=False,stroke
         else:
             return "false:cant find point by letter"
     segmentlinegroup = trans_chain_to_pointletter_list(chain_of_point)
-    print (segmentlinegroup)
     for i in segmentlinegroup:
         #检查是否已经创建了线段 如果不存在就创建线段
         if i in SegmentLine_dic or i[::-1] in SegmentLine_dic:
@@ -529,14 +648,19 @@ def save_surface(chain_of_point,floor=0,color=(200,200,20,255),fill=False,stroke
             save_Segmentline_by_ABletter(q[0],q[1],visible=False)
     nowdic={}
     nowdic['floor']=floor
+    all_x,all_y=0,0
+    for x,y in surf_pointgroup:
+        all_x,all_y=all_x+x,all_y+y
+    center=[all_x/len(surf_pointgroup),all_y/len(surf_pointgroup)]
+    nowdic['center']=center
     nowdic['local']=surf_pointgroup
-    nowdic['color']=py5.color(*color)
+    nowdic['color']=color
     nowdic['fill']=fill
     nowdic['stroke']=stroke
-    nowdic['stroke_color']=py5.color(*stroke_color)
+    nowdic['stroke_color']=stroke_color
     surfacedic[chain_of_point]=nowdic
     return surf_pointgroup
-
+#【center】会自动生成在参数字典中：重心:是所有顶点坐标的平均值
 def save_surface_by_pointlist(apointlist,floor=0,color=(200,200,20,255),fill=False,stroke=None,stroke_color=(0,0,0)):
     theletter=droppoint_group_in_note(apointlist)
     chain="-".join(theletter)
@@ -750,7 +874,7 @@ def screen_drawlines_detail(floor):
         if val['visible']==False:
             continue
         color=val['color']
-        py5.stroke(py5.color(*color))
+        py5.stroke(color)
         strokeweigh=val['stroke_weight']
         py5.stroke_weight(strokeweigh)
         py5.line(*val['location'])
@@ -781,6 +905,10 @@ def ceshi3():
                                      strokeweight=random.randint(1,10))
     #print(pointdic)
 
+# save_Segmentline_by_ABpointxy([0,0],[200,200])
+save_Segmentline_by_ABpointxy([150,310],[200,310])
+save_line(2,10)
+print(intersection_line_Segmentline ('a','A-B'))
 
 #接下来
 
@@ -791,7 +919,6 @@ def ceshi3():
 
 #split_surface_by_line（）是GPT生成的 应该修改使其符合规范（利用trans_chain_to_letterlist()和line_segment_intersection()）
 
-#储存平面时 应当添加一个参数center:重心:是所有顶点坐标的平均值
 
 #对平面进行仿射变换操作，其中旋转操作（以中心center为轴）
 
