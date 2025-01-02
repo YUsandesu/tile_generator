@@ -1,41 +1,47 @@
-from audioop import error
-
 import numpy as np
 import py5
-from bokeh.core.property.vectorization import value
-from conda.gateways.repodata import RepoInterface
-from cytoolz import remove
-from docutils.utils.math.latex2mathml import letters
 import random
 from collections import defaultdict
-
-from fontTools.misc.cython import returns
-from numba.core.cgutils import ifnot
-from numba.cuda import local
-from py5 import stroke, color, vertices
-from pygments.lexer import words
 import sympy as sym
+import math
+
+from IPython.testing.decorators import skipif
+from numpy.matrixlib.defmatrix import matrix
+
 pointdic={}
 letterlist = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 A-Z
 a_letterlist=[chr(i) for i in range(97, 123)]  # ASCII 范围 97 到 122
 nowletterlist=letterlist[:]
-line_segment_dic={}
+SegmentLine_dic={}
 surfacedic={}
 surface_drawed=[]
 line_dic={}
 now_a_list=[]
 
 class Matrix2D:
-    def __init__(self):
-
+    def __init__(self, matrix=None):
+        """
+        初始化二维矩阵。
+        参数：
+        - matrix: 一个形状为 (3, N) 的二维矩阵。如果未提供，则初始化为单位矩阵。
+        """
+        if matrix is None:
+            # 默认初始化为单位矩阵
+            self.matrix = np.identity(3)
+        else:
+            # 转换为 NumPy 数组
             self.matrix = np.array(matrix)
-            if self.matrix.shape[0] != 3:
-                 raise ValueError("初始化错误：提供的矩阵必须是行数为(3)的二维矩阵")
 
+            # 检查矩阵是否符合 (3, N) 的形状
+            if len(self.matrix.shape) != 2 or self.matrix.shape[0] != 3:
+                raise ValueError("初始化错误：提供的矩阵必须是形状为 (3, N) 的二维矩阵。")
 
     def apply_translation(self, tx, ty):
         """
         对当前矩阵应用平移变换。
+        参数：
+        - tx: x 方向的平移距离
+        - ty: y 方向的平移距离
         """
         translation_matrix = np.array([
             [1, 0, tx],
@@ -49,6 +55,8 @@ class Matrix2D:
     def apply_rotation(self, theta):
         """
         对当前矩阵应用旋转变换。
+        参数：
+        - theta: 旋转角度（以弧度为单位）
         """
         cos_theta = np.cos(theta)
         sin_theta = np.sin(theta)
@@ -64,6 +72,9 @@ class Matrix2D:
     def apply_scaling(self, sx, sy):
         """
         对当前矩阵应用缩放变换。
+        参数：
+        - sx: x 方向的缩放比例
+        - sy: y 方向的缩放比例
         """
         scaling_matrix = np.array([
             [sx, 0, 0],
@@ -92,11 +103,6 @@ class Matrix2D:
         矩阵的字符串表示。
         """
         return f"Matrix2D(\n{self.matrix}\n)"
-
-
-
-
-
 
 #================创建多边形操作================
 def get_nextpot_bycos(A, B, cosR):
@@ -345,15 +351,21 @@ def droppoint_in_note(apoint):
 #成功返回一个字母代号
 
 #////////////《线操作》////////////
-def save_line_segment (Aletter,Bletter,floor=0,color=(0,0,0,255),strokeweight=3,visible=True):
-    global line_segment_dic
+def save_Segmentline_by_ABletter (Aletter, Bletter, floor=0, color=(0, 0, 0, 255), strokeweight=3, visible=True):
+    global SegmentLine_dic
     inf={}
     inf["location"]=list(pointdic[Aletter])+list(pointdic[Bletter])
     inf["floor"] = floor
     inf["color"]=color
     inf["stroke_weight"] = strokeweight
     inf["visible"]=visible
-    line_segment_dic[Aletter+"-"+Bletter]=inf
+    SegmentLine_dic[Aletter + "-" + Bletter]=inf
+def save_Segmentline_by_ABpointxy(Apoint, Bpoint, floor=0, color=(0, 0, 0, 255), strokeweight=3, visible=True):
+    Aletter = droppoint_in_note(Apoint)
+    Bletter = droppoint_in_note(Bpoint)
+    save_Segmentline_by_ABletter (Aletter, Bletter, floor, color, strokeweight, visible)
+    return Aletter+"-"+Bletter
+
 #有图层高度floor
 def save_line(k,b,a=1):
     global line_dic
@@ -399,7 +411,6 @@ def segmentline_to_line(line2plist):
        b = y1 - k * x1
     str=save_line(k,b,a)
     return str
-
 def line_segment_intersection(Aline, Bline):
     """
     使用 numpy 计算两条线段的交点
@@ -498,6 +509,7 @@ def intersection_2_line_segment(Aline_S, Bline_S):
 def save_surface(chain_of_point,floor=0,color=(200,200,20,255),fill=False,stroke=None,stroke_color=(0,0,0)):
     global pointdic
     global surfacedic
+    global SegmentLine_dic
     surf_pointgroup=[]
     alist_of_point=chain_of_point.split('-')
     for aletter in alist_of_point:
@@ -506,6 +518,15 @@ def save_surface(chain_of_point,floor=0,color=(200,200,20,255),fill=False,stroke
             surf_pointgroup.append(point_xy)
         else:
             return "false:cant find point by letter"
+    segmentlinegroup = trans_chain_to_pointletter_list(chain_of_point)
+    print (segmentlinegroup)
+    for i in segmentlinegroup:
+        #检查是否已经创建了线段 如果不存在就创建线段
+        if i in SegmentLine_dic or i[::-1] in SegmentLine_dic:
+            continue
+        else:
+            q=i.split('-')
+            save_Segmentline_by_ABletter(q[0],q[1],visible=False)
     nowdic={}
     nowdic['floor']=floor
     nowdic['local']=surf_pointgroup
@@ -515,72 +536,16 @@ def save_surface(chain_of_point,floor=0,color=(200,200,20,255),fill=False,stroke
     nowdic['stroke_color']=py5.color(*stroke_color)
     surfacedic[chain_of_point]=nowdic
     return surf_pointgroup
+
 def save_surface_by_pointlist(apointlist,floor=0,color=(200,200,20,255),fill=False,stroke=None,stroke_color=(0,0,0)):
     theletter=droppoint_group_in_note(apointlist)
     chain="-".join(theletter)
     save_surface(chain,floor,color,fill,stroke,stroke_color)
 
+def split_surface_by_line(surface_chain, line_params):
+   trans_chain_to_pointletter_list(surface_chain)
 
-def split_surface_by_line(vertices, line_params):
-    """
-    分割多边形为两个子多边形
-    :param vertices: 原始多边形顶点矩阵 (n, 2)
-    :param line_params: 直线参数 (a, b, c)，表示 ax + by + c = 0
-    :return: 两个子多边形的顶点矩阵，如果不存在切分则返回 None
-    """
-    a, b, c = line_params
-    n = len(vertices)
-    side = []
-    intersections = []
-    new_vertices_a = []
-    new_vertices_b = []
 
-    # 判断每个点在直线的哪一侧
-    for i in range(n):
-        x, y = vertices[i]
-        side.append(a * x + b * y + c)
-
-    # 如果所有点都在直线的同一侧，直接返回 None
-    if all(s >= 0 for s in side) or all(s <= 0 for s in side):
-        return None
-
-    # 遍历每条边，判断是否与直线相交
-    for i in range(n):
-        curr = vertices[i]
-        next = vertices[(i + 1) % n]
-        curr_side = side[i]
-        next_side = side[(i + 1) % n]
-
-        if curr_side >= 0:
-            new_vertices_a.append(curr)
-        if curr_side <= 0:
-            new_vertices_b.append(curr)
-
-        # 检查是否存在交点
-        if curr_side * next_side < 0:
-            # 计算交点
-            x1, y1 = curr
-            x2, y2 = next
-            t = - (a * x1 + b * y1 + c) / (a * (x2 - x1) + b * (y2 - y1))
-            intersection = (x1 + t * (x2 - x1), y1 + t * (y2 - y1))
-            intersections.append(intersection)
-
-            # 交点属于两个多边形
-            new_vertices_a.append(intersection)
-            new_vertices_b.append(intersection)
-
-    # 如果没有交点，则无法切分多边形，返回 None
-    if not intersections:
-        return None
-
-    # 排序顶点以构成闭合多边形
-    new_vertices_a = np.array(new_vertices_a)
-    new_vertices_b = np.array(new_vertices_b)
-
-    return [new_vertices_a, new_vertices_b]
-#直线接受[a,b,c] ax+by+c=0
-#vertices接受一个点坐标集合
-#存在返回[集合A,集合B] 不存在返回None
 def is_point_in_surface(polx, P):
     """
        判断点 P 是否在 polx 中（包括在边上）
@@ -727,7 +692,9 @@ def find_same_in_dic(d,seevaule=False):
 #找到字典中相同的值，返回一个列表[[A,B,C],[D,E,F]]
 #seevaule=True 返回{"[A,B,C]":[1,3],"[D,E]":[2,4]}
 #d接受的参数是一个字典形
-def trans_chain_to_letterlist(chain):
+def check_same_pointdic_and_segmentlinedic():
+    print()
+def trans_chain_to_pointletter_list(chain):
     nodes = chain.split("-")  # 将链式结构分解为节点列表["A", "B", "C"]
     # 生成相邻对
     pairs = [(nodes[i], nodes[i + 1]) for i in range(len(nodes) - 1)]
@@ -735,7 +702,7 @@ def trans_chain_to_letterlist(chain):
     pairs.append((nodes[-1], nodes[0]))# 结果: [('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A')]
     formatted_pairs = [f"{a}-{b}" for a, b in pairs]
     return formatted_pairs
-#给定一个字符串A-B-C将它切割成[A,B][B,C][C,A]返回
+#给定一个字符串A-B-C将它切割成[A-B][B-C][C-A]返回
 #=========================================
 
 #=============绘图渲染操作===================
@@ -772,12 +739,12 @@ def screen_drawlines(color=0,strok_weight=2):
     py5.stroke(color)
     py5.stroke_weight(strok_weight)
     pointlist=[]
-    for key,value in line_segment_dic.items():
+    for key,value in SegmentLine_dic.items():
         pointlist.append(value["location"])
     py5.lines(np.array(pointlist,dtype=np.float32))
     #这里lines接收的是Np中的四维浮点数组[a b c d]
 def screen_drawlines_detail(floor):
-    for key, val in line_segment_dic.items():
+    for key, val in SegmentLine_dic.items():
         if val['floor']!=floor:
             continue
         if val['visible']==False:
@@ -804,64 +771,21 @@ def ceshi2():
         i=i[1:]
         removepoint_group(i)
 def ceshi3():
-    global line_segment_dic
+    global SegmentLine_dic
     global pointdic
-    line_segment_dic={}
+    SegmentLine_dic={}
     for i in range(50):
-        save_line_segment(random.choice(list(pointdic.keys())), random.choice(list(pointdic.keys())),
-                  floor=random.randint(0,3),
-                  color=tuple(np.random.randint(0, 200, size=3)),
-                  strokeweight=random.randint(1,10))
+        save_Segmentline_by_ABletter(random.choice(list(pointdic.keys())), random.choice(list(pointdic.keys())),
+                                     floor=random.randint(0,3),
+                                     color=tuple(np.random.randint(0, 200, size=3)),
+                                     strokeweight=random.randint(1,10))
     #print(pointdic)
-print(trans_chain_to_letterlist('A-B-C-D-E'))
-#ceshi2()
-print (pointdic)
-#print(save_surface("A-C-D-E-M6-A7"))
-#print(save_surface("D6-E2-M2-A1",color=(0,0,0)))
-print(surfacedic)
-print(is_point_in_surface(np.array([[-100,0],[100,0],[0,100]]),[0,100]))
-#ceshi3()
-#screen_drawlines()
-
-# 示例
 
 
-A=[[0,3],[3,3]]
-B=[[1,1.2],[3,3]]
-C=[[1.5,0],[1.5,100]]
-D=[[0,2],[100,2]]
-
-# 示例
-
-
-intersection = line_segment_intersection(C,D)
-if intersection:
-    print("交点坐标：", intersection)
-else:
-    print("没有交点")
-print (intersection_2_line_segment(D,A))
-save_surface_by_pointlist ([[1,100],[2,200],[3,-100]])
-save_line(3,4)
-segmentline_to_line(A)
-print(surfacedic)
-for i in range(550):
-    A=[[random.randint(-100,100),random.randint(-100,100)],[random.randint(-100,100),random.randint(-100,100)]]
-    # B=[[random.randint(-100,100),random.randint(-100,100)],[random.randint(-100,100),random.randint(-100,100)]]
-    segmentline_to_line(A)
-for i in range (250):
-    ale=random.choice(now_a_list)
-    # print(ale)
-    del_a_letter(ale)
-print(now_a_list)
-print(line_dic.keys())
 #接下来
 
 
 
-#save_line()把线条（函数直线）储存下来
-
-#增加一个通过pointlist创建线段的子程序：
-#储存线段加一个判断，如果线段在【点集】中，使用字母，如果不在的话创建字母
 #如果点 𝑃在四边形内部，则点𝑃对每条边的叉积结果的符号应该是相同的。
 #为平面创建一个子平面来播放动画
 
@@ -872,6 +796,8 @@ print(line_dic.keys())
 #对平面进行仿射变换操作，其中旋转操作（以中心center为轴）
 
 #应该制作查重优化机制 如果点重合 那么修改的不仅是点字典还要修改直线字典和面字典
+# def check_same_pointdic_and_segmentlinedic():
+
 
 #Pattern（图案、模式），Disorder（无序）
 #Pattern1：百叶窗消失：以多边形任意一条边（比较长的）创造一组直线切割多边形 形成条纹状，切割距离可以与斐波那契数列成反比例
