@@ -7,7 +7,7 @@ import math
 
 
 pointdic={}
-letterlist = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 Chain_or_2pointxy-Z
+letterlist = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 A-Z
 a_letterlist=[chr(i) for i in range(97, 123)]  # ASCII 范围 97 到 122
 nowletterlist=letterlist[:]
 SegmentLine_dic={}
@@ -110,7 +110,7 @@ def get_nextpot_bycos(A, B, cosR):
     R = (VeA - VeB).norm()
     # print("R:", R.evalf())
     eq1 = sym.Eq((VeA - VeC).norm(), (VeA - VeB).norm())  # AB=AC=R
-    eq2 = sym.Eq((VeA - VeC).dot(VeA - VeB), R * R * cosR)  # 向量点积公式：（Chain_or_2pointxy - C）dot(Chain_or_2pointxy - B) =∣AC∣*∣AB∣⋅cos(Angel)
+    eq2 = sym.Eq((VeA - VeC).dot(VeA - VeB), R * R * cosR)  # 向量点积公式：（A - C）dot(A - B) =∣AC∣*∣AB∣⋅cos(Angel)
     C = sym.solve([eq1, eq2], VeC)
     return (C)
 # 给定点A和B，AB,AC之间夹角cosR 求解C
@@ -151,7 +151,7 @@ def get_everypoint(A, B, ang):
 
     reallist = change_shunxu(jieguo)
     return (reallist)
-# ↑通过给定【Center】：Chain_or_2pointxy，【AskPoint】：B，ang:【边数】
+# ↑通过给定【Center】：A，【AskPoint】：B，ang:【边数】
 # 返回一个列表型，这个ang边形的点集
 #===========================================
 
@@ -316,7 +316,7 @@ def droppoint_group_in_note(apointgroup):
     """
     循环调用 droppoint_in_note()
     :param apointgroup: [a,b][c,d][e,f]格式不会会报错
-    :return: 返回一个代号列表[Chain_or_2pointxy,B,C,D]
+    :return: 返回一个代号列表[A,B,C,D]
     """
     back=[]
     for i in apointgroup:
@@ -331,7 +331,7 @@ def droppoint_group_in_note(apointgroup):
 def droppoint_in_note(apoint):
     """
     如果格式不会会报错
-    :return: 返回新创建字母的代号 例如：Chain_or_2pointxy
+    :return: 返回新创建字母的代号 例如：A
     """
     global letterlist
     global nowletterlist
@@ -475,8 +475,8 @@ def solve_line(line_letter, x=None, y=None):
 def line_segment_intersection_Matrix(Aline, Bline):
     """
     使用矩阵方法 numpy 计算两条线段的交点
-    :param A1: 线段 Chain_or_2pointxy 的起点 (x1, y1)
-    :param A2: 线段 Chain_or_2pointxy 的终点 (x2, y2)
+    :param A1: 线段 A 的起点 (x1, y1)
+    :param A2: 线段 A 的终点 (x2, y2)
     :param B1: 线段 B 的起点 (x3, y3)
     :param B2: 线段 B 的终点 (x4, y4)
     :return: 交点坐标 (x, y)，如果没有交点返回 None
@@ -486,7 +486,7 @@ def line_segment_intersection_Matrix(Aline, Bline):
     x3, y3 = Bline[0]
     x4, y4 = Bline[1]
 
-    # 创建系数矩阵 Chain_or_2pointxy@缩小量=b
+    # 创建系数矩阵 A@缩小量=b
     A = np.array([[x2 - x1, x3 - x4], [y2 - y1, y3 - y4]])
     b = np.array([x3 - x1, y3 - y1])
 
@@ -834,7 +834,7 @@ def is_point_in_surface(polx, P):
         if abs(cross) > 1e-10:  # 允许微小误差
             return False
         # 判断是否在范围内
-        dot_product = np.dot(P - A, B - A)  # 投影点是否在 Chain_or_2pointxy->B 的方向上
+        dot_product = np.dot(P - A, B - A)  # 投影点是否在 A->B 的方向上
         squared_length = np.dot(B - A, B - A)  # AB 的平方长度
         return 0 <= dot_product <= squared_length
 
@@ -941,7 +941,7 @@ def find_same_in_dic(d,seevaule=False):
     :param d: 一个字典形
     :param seevaule: 是否返回键值
     :return:
-    seevaule=False 列表[[Chain_or_2pointxy,B,C],[D,E,F]] seevaule=Ture 字典{"[Chain_or_2pointxy,B,C]":[1,3],"[D,E]":[2,4]}
+    seevaule=False 列表[[A,B,C],[D,E,F]] seevaule=Ture 字典{"[A,B,C]":[1,3],"[D,E]":[2,4]}
     """
     value_to_keys = defaultdict(list)
     for key, value in d.items():
@@ -954,15 +954,15 @@ def find_same_in_dic(d,seevaule=False):
     return duplicates
 def tran_surfacechain_to_seglinechain(chain):
     """
-    给定一个字符串A-B-C将它切割成[Chain_or_2pointxy-B][B-C][C-Chain_or_2pointxy](注意是首尾相接的)
-    :param chain: 文本型，一个字符串 例：Chain_or_2pointxy-B-C
-    :return: [Chain_or_2pointxy-B][B-C][C-Chain_or_2pointxy]
+    给定一个字符串A-B-C将它切割成[A-B][B-C][C-A](注意是首尾相接的)
+    :param chain: 文本型，一个字符串 例：A-B-C
+    :return: [A-B][B-C][C-A]
     """
-    nodes = chain.split("-")  # 将链式结构分解为节点列表["Chain_or_2pointxy", "B", "C"]
+    nodes = chain.split("-")  # 将链式结构分解为节点列表["A", "B", "C"]
     # 生成相邻对
     pairs = [(nodes[i], nodes[i + 1]) for i in range(len(nodes) - 1)]
     # 加入首尾连接
-    pairs.append((nodes[-1], nodes[0]))# 结果: [('Chain_or_2pointxy', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'Chain_or_2pointxy')]
+    pairs.append((nodes[-1], nodes[0]))# 结果: [('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A')]
     formatted_pairs = [f"{a}-{b}" for a, b in pairs]
     return formatted_pairs
 
@@ -1049,7 +1049,7 @@ B_chain=save_Segmentline_by_ABpointxy([150,310],[200,310])
 print(segmentline_to_line(A_chain,back_range=True,temp=True))
 
 # save_line(2,10)
-# print(intersection_line_Segmentline ('a','Chain_or_2pointxy-B'))
+# print(intersection_line_Segmentline ('a','A-B'))
 # for i in range (10):
 #     inter_p = intersection_2line(save_line(k=random.randint(-1000,100), b=random.randint(-100,100)), save_line(k=random.randint(1,100), b=random.randint(-100,100), a=random.randint(-100,100)))
 #     print(inter_p)
