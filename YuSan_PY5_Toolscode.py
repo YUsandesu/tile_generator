@@ -5,16 +5,9 @@ from collections import defaultdict
 import sympy as sym
 import math
 
-from IPython.testing.decorators import skipif
-from PyQt5.QtCore import center
-from anyio import value
-from conda.instructions import PRINT
-from numba.core.ir import Raise
-from numpy.matrixlib.defmatrix import matrix
-from py5 import point
 
 pointdic={}
-letterlist = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 A-Z
+letterlist = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 Chain_or_2pointxy-Z
 a_letterlist=[chr(i) for i in range(97, 123)]  # ASCII 范围 97 到 122
 nowletterlist=letterlist[:]
 SegmentLine_dic={}
@@ -117,7 +110,7 @@ def get_nextpot_bycos(A, B, cosR):
     R = (VeA - VeB).norm()
     # print("R:", R.evalf())
     eq1 = sym.Eq((VeA - VeC).norm(), (VeA - VeB).norm())  # AB=AC=R
-    eq2 = sym.Eq((VeA - VeC).dot(VeA - VeB), R * R * cosR)  # 向量点积公式：（A - C）dot(A - B) =∣AC∣*∣AB∣⋅cos(Angel)
+    eq2 = sym.Eq((VeA - VeC).dot(VeA - VeB), R * R * cosR)  # 向量点积公式：（Chain_or_2pointxy - C）dot(Chain_or_2pointxy - B) =∣AC∣*∣AB∣⋅cos(Angel)
     C = sym.solve([eq1, eq2], VeC)
     return (C)
 # 给定点A和B，AB,AC之间夹角cosR 求解C
@@ -158,7 +151,7 @@ def get_everypoint(A, B, ang):
 
     reallist = change_shunxu(jieguo)
     return (reallist)
-# ↑通过给定【Center】：A，【AskPoint】：B，ang:【边数】
+# ↑通过给定【Center】：Chain_or_2pointxy，【AskPoint】：B，ang:【边数】
 # 返回一个列表型，这个ang边形的点集
 #===========================================
 
@@ -247,7 +240,6 @@ def tans_to_easyread (listxy):
         repoint = [newvectx,newvecty]
         return repoint
     else:
-        print(listxy)
         raise ValueError("Data must be a list[x,y]")  # 抛出 ValueError 异常
 def easyread_to_real():
     print()
@@ -307,6 +299,10 @@ def removepoint_by_letter(aletter):
     # 插入元素
     nowletterlist.insert(num, aletter)
 def removepoint_by_xy(listxy):
+    """
+    从字典pointdic中遍历来查找并删除
+    如果找不到会有返回值"cant find"
+    """
     global pointdic
     target_value = listxy
     # 找到所有键
@@ -314,9 +310,14 @@ def removepoint_by_xy(listxy):
     if keys != None:
         removepoint_by_letter(keys[-1])
     else:
-        return ("mei zhao dao")
-#如果找不到会有返回值
+        return ("cant find")
+
 def droppoint_group_in_note(apointgroup):
+    """
+    循环调用 droppoint_in_note()
+    :param apointgroup: [a,b][c,d][e,f]格式不会会报错
+    :return: 返回一个代号列表[Chain_or_2pointxy,B,C,D]
+    """
     back=[]
     for i in apointgroup:
         if not isinstance(i,list):
@@ -327,9 +328,11 @@ def droppoint_group_in_note(apointgroup):
         else:
             ValueError("data is not:([x,y],(x,y),(x,y))")
     return back
-#如果成功会返回一个代号列表[A,B,C,D]
-#如果格式不会会报错
 def droppoint_in_note(apoint):
+    """
+    如果格式不会会报错
+    :return: 返回新创建字母的代号 例如：Chain_or_2pointxy
+    """
     global letterlist
     global nowletterlist
     global pointdic
@@ -349,31 +352,47 @@ def droppoint_in_note(apoint):
         del nowletterlist[0]
         return back
     else:
-        print (list_depth(apoint),len(apoint))
-
         raise ValueError("Data must be a list[x,y]or(x,y)")  # 抛出 ValueError 异常
-#如果格式不会会报错
-#成功返回一个字母代号
+
 
 #////////////《线操作》////////////
 def save_Segmentline_by_ABletter (Aletter, Bletter, floor=0, color=py5.color(0, 0, 0, 255), strokeweight=3, visible=True):
+    """
+    :param floor: 图层高度
+    :param color: 只接受py5.color()之后的数值 否则后面绘制会出错
+    :param visible: 是否可视，在绘制辅助线时候可以设置为=False
+    """
     global SegmentLine_dic
     inf={}
-    inf["location"]=list(pointdic[Aletter])+list(pointdic[Bletter])
+    inf["location"]=[list(pointdic[Aletter]),list(pointdic[Bletter])]
+
     inf["floor"] = floor
     inf["color"]=color
     inf["stroke_weight"] = strokeweight
     inf["visible"]=visible
     SegmentLine_dic[Aletter + "-" + Bletter]=inf
 def save_Segmentline_by_ABpointxy(Apoint, Bpoint, floor=0, color=py5.color(0, 0, 0, 255), strokeweight=3, visible=True):
+    """
+        :param floor: 图层高度
+        :param color: 只接受py5.color()之后的数值 否则后面绘制会出错
+        :param visible: 是否可视，在绘制辅助线时候可以设置为=False
+        :return: 返回一个Chain
+        """
     Aletter = droppoint_in_note(Apoint)
     Bletter = droppoint_in_note(Bpoint)
     save_Segmentline_by_ABletter (Aletter, Bletter, floor, color, strokeweight, visible)
     return Aletter+"-"+Bletter
 def remove_Segmentline(chain):
     del SegmentLine_dic[chain]
-#有图层高度floor
-def save_line(k,b,a=1):
+def save_line(k,b,a=1,temp=False):
+    """
+    保存一个函数：ay=kx+b
+    如果字典detaildic中有'a'键 储存的是x=b 是一个垂直线
+    如果字典detaildic中有'k'键 是y=b 是一个水平线
+    :param a: 如果a不是1或0 认定输入的是ay+bx+k=0
+    :param temp: 如果为True 那么不创建到字典中 仅返回一个kba字典
+    :return: temp=False 返回一个字母代号 例如：a temp=True 不创建到字典中 仅返回一个kba字典 
+    """
     global line_dic
     detaildic = {}
     if a==0 and k==0:
@@ -381,8 +400,8 @@ def save_line(k,b,a=1):
     if a==0:
         strline = f"x={b/-k}"
         detaildic['str']=strline
+        detaildic['b'] = b / k
         detaildic['k'] = -1
-        detaildic['b'] = b/-k
         detaildic['a'] = 0
     if k==0:
         strline = f"y={b}"
@@ -390,44 +409,52 @@ def save_line(k,b,a=1):
         detaildic['k'] = 0
         detaildic['b'] = b
     if a==1 and k!=0:
-        strline = f"y={k}x+{b}"
+        if b > 0:
+            strline = f"y={k}x+{b}"
+        elif b < 0:
+            strline = f"y={k}x-{b}"
+        elif b == 0:
+            strline = f"y={k}x"
         detaildic['str'] = strline
         detaildic['k'] = k
         detaildic['b'] = b
+    if a!=0 and a!=1 and a is not None:
+        #ay+bx+c=0
+        k=b/a
+        b=k/a
+        if b>0:
+            strline = f"y={k}x+{b}"
+        elif b<0:
+            strline = f"y={k}x-{b}"
+        elif b==0:
+            strline = f"y={k}x"
+
+        detaildic['str'] = strline
+        detaildic['k'] = k
+        detaildic['b'] = b
+
+    if temp==True:
+        return detaildic
     newletter= ask_a_new_letter()
     line_dic[newletter]=detaildic
     return newletter
-#函数：ay=kx+b
-
-def segmentline_to_line(chain):
-    global pointdic
-    Aletter,Bletter=chain.split('-')
-    x1,x2=pointdic[Aletter][0],pointdic[Bletter][0]
-    y1,y2=pointdic[Aletter][1],pointdic[Bletter][1]
-    if x1==x2 and y1==y2:
-        raise ValueError('is not a line,this is a point')
-    if x1==x2:
-       a=0
-       b=x1
-       k=-1
+def remove_line(letter):
+    if letter in line_dic:
+        del line_dic[letter]
+        del_a_letter(letter)
     else:
-       a=1
-
-    if y1==y2:
-       k=0
-       b=y1
-    if x1!=x2 and y1!=y2:
-       k = (y1 - y2) / (x1 - x2)
-       b = y1 - k * x1
-    str=save_line(k,b,a)
-    print('segmentline_to_line:',str)
-    return str
-#返回一个代号letter
+        return "can not find in dic"
 
 def solve_line(line_letter, x=None, y=None):
+    """
+    给定x或y，解决一个函数问题y=kx+b
+    :param line_letter: 直线的标识字母 例：a
+    """
+    global line_dic
+    if not line_letter in line_dic:
+        raise ValueError("没有找到直线，直线还未创建")
     if x==None and y==None:
         raise ValueError("x，y都没有输入值 无法计算")
-    global line_dic
     detail_dic = line_dic[line_letter]
     if 'a' in detail_dic:
         the_a=detail_dic['a']
@@ -445,12 +472,11 @@ def solve_line(line_letter, x=None, y=None):
         if the_k==0:
             raise ValueError("无法计算，因为k=0时y=0x+b 无法计算x")
         return (y-the_b)/the_k
-
-def line_segment_intersection(Aline, Bline):
+def line_segment_intersection_Matrix(Aline, Bline):
     """
-    使用 numpy 计算两条线段的交点
-    :param A1: 线段 A 的起点 (x1, y1)
-    :param A2: 线段 A 的终点 (x2, y2)
+    使用矩阵方法 numpy 计算两条线段的交点
+    :param A1: 线段 Chain_or_2pointxy 的起点 (x1, y1)
+    :param A2: 线段 Chain_or_2pointxy 的终点 (x2, y2)
     :param B1: 线段 B 的起点 (x3, y3)
     :param B2: 线段 B 的终点 (x4, y4)
     :return: 交点坐标 (x, y)，如果没有交点返回 None
@@ -460,7 +486,7 @@ def line_segment_intersection(Aline, Bline):
     x3, y3 = Bline[0]
     x4, y4 = Bline[1]
 
-    # 创建系数矩阵 A@缩小量=b
+    # 创建系数矩阵 Chain_or_2pointxy@缩小量=b
     A = np.array([[x2 - x1, x3 - x4], [y2 - y1, y3 - y4]])
     b = np.array([x3 - x1, y3 - y1])
 
@@ -482,36 +508,56 @@ def line_segment_intersection(Aline, Bline):
         return (intersection_x, intersection_y)
 
     return None  # 如果 t 或 s 不在范围内，则没有交点
-#矩阵方法 查找两条线段交点，无交点返回None
-def intersection_2_Segmentline(Aline_S, Bline_S):
-    Ax1, Ay1 = Aline_S[0]
-    Ax2, Ay2 = Aline_S[1]
-    Bx1, By1 = Bline_S[0]
-    Bx2, By2 = Bline_S[1]
 
+#========
+#这两个应该重写
+def intersection_2_Segmentline(A_seg_Chain_or_2pointxy, B_seg_Chain_or_2pointxy):
+    """
+    返回 None 则没有交点
+    可以混用Chain和2pointxy
+    :param A_seg_Chain_or_2pointxy: 可以是Chain，也可以是列表：[ [a,b] , [c,d] ]
+    :param B_seg_Chain_or_2pointxy: 可以是Chain，也可以是列表：[ [a,b] , [c,d] ]
+    """
+    #判断输入格式
+    global SegmentLine_dic
+    if isinstance(A_seg_Chain_or_2pointxy,str):
+        local_A=SegmentLine_dic[A_seg_Chain_or_2pointxy]['location']
+        Ax1,Ay1 = local_A[0]
+        Ax2,Ay2 = local_A[1]
+    else:
+        Ax1, Ay1 = A_seg_Chain_or_2pointxy[0]
+        Ax2, Ay2 = A_seg_Chain_or_2pointxy[1]
+    if isinstance(B_seg_Chain_or_2pointxy,str):
+        local_B = SegmentLine_dic[B_seg_Chain_or_2pointxy]['location']
+        Bx1, By1 = local_B[0]
+        Bx2, By2 = local_B[1]
+    else:
+        Bx1, By1 = B_seg_Chain_or_2pointxy[0]
+        Bx2, By2 = B_seg_Chain_or_2pointxy[1]
+
+    #特殊输入情况 防止报错
     if Bx1 == Bx2 and By1==By2 and Ax1==Ax2 and Ay1==Ay2:
         #raise ValueError('输入了一个点')
         return Ax1,Ay1
     if Bx1 == Bx2 and By1==By2:
         #raise ValueError('B线是一个点')
-        temp_chain = save_Segmentline_by_ABpointxy(Aline_S[0], Aline_S[1])
-        temp_line_letter = segmentline_to_line(temp_chain)
+        temp_line_letter = segmentline_to_line([A_seg_Chain_or_2pointxy[0], A_seg_Chain_or_2pointxy[1]])
         if By1 == solve_line(temp_line_letter, x=Bx1) and Bx1 == solve_line(temp_line_letter, y=By1):
+            remove_line(temp_line_letter)
             return Bx1, By1
         else:
+            remove_line(temp_line_letter)
             return None
     if Ax1==Ax2 and Ay1==Ay2:
         #raise ValueError('A线是一个点')
-        temp_chain=save_Segmentline_by_ABpointxy(Bline_S[0],Bline_S[1])
-        temp_line_letter=segmentline_to_line(temp_chain)
+        temp_line_letter=segmentline_to_line([B_seg_Chain_or_2pointxy[0], B_seg_Chain_or_2pointxy[1]])
         if Ay1==solve_line(temp_line_letter,x=Ax1) and Ax1==solve_line(temp_line_letter, y=Ay1):
+            remove_line(temp_line_letter)
             return Ax1,Ay1
         else:
+            remove_line(temp_line_letter)
             return None
 
-
-
-    print ('A:',Aline_S,'B:',Bline_S)
     # 检查线段投影范围是否重叠（快速排除法）
     rangeX = max(min(Ax1, Ax2), min(Bx1, Bx2)), min(max(Ax1, Ax2), max(Bx1, Bx2))
     rangeY = max(min(Ay1, Ay2), min(By1, By2)), min(max(Ay1, Ay2), max(By1, By2))
@@ -529,8 +575,6 @@ def intersection_2_Segmentline(Aline_S, Bline_S):
     else:
         k_B = (By1 - By2) / (Bx1 - Bx2)
         b_B = By1 - k_B * Bx1
-
-
 
     # 检查是否平行
     if k_A is not None and k_B is not None:  # 两条线都不是垂直线
@@ -552,8 +596,8 @@ def intersection_2_Segmentline(Aline_S, Bline_S):
     else:
         return None  # 交点不在线段范围内
 #经典方法 查找两条线段交点，无交点返回None
+def intersection_line_Segmentline(segline_chain,line='a'):
 
-def intersection_line_Segmentline(line='a',segline_chain='A-B'):
     global pointdic
     global line_dic
     Aletter,Bletter=segline_chain.split('-')
@@ -562,7 +606,6 @@ def intersection_line_Segmentline(line='a',segline_chain='A-B'):
     Ax,Ay=A
     Bx,By=B
     seg_rangeX, seg_rangeY = [min([Ax,Bx]),max([Ax,Bx])],[min([Ay,By]),max([Ay,By])]
-    print(line_dic[line])
 
     #根据投影判断是否可能存在交点
     if not 'a' in line_dic[line]:
@@ -575,8 +618,6 @@ def intersection_line_Segmentline(line='a',segline_chain='A-B'):
             line_shadow_Rangex = [min([line_shadow_x1, line_shadow_x2]), max([line_shadow_x1, line_shadow_x2])]
             final_range_x = [max(line_shadow_Rangex[0], seg_rangeX[0]), min(line_shadow_Rangex[1], seg_rangeX[1])]
             final_range_y = [max(line_shadow_Rangey[0], seg_rangeY[0]), min(line_shadow_Rangey[1], seg_rangeY[1])]
-            print('投影范围：', line_shadow_Rangex, line_shadow_Rangey)
-            print(final_range_x, final_range_y)
             if final_range_x[0]>final_range_x[1] or final_range_y[0]>final_range_y[1]:
                 #范围无效 不存在交点
                 return None
@@ -585,7 +626,6 @@ def intersection_line_Segmentline(line='a',segline_chain='A-B'):
                     #raise ValueError('范围仅为一个点')
                     print('范围仅为一个点')
                     letter_theline=segmentline_to_line(segline_chain)
-                    print(letter_theline)
                     if solve_line(letter_theline,x=final_range_x[0])==final_range_y[0]:
                         #如果把点的x坐标带入直线中，得到的y值刚好是点的y坐标
 
@@ -618,11 +658,100 @@ def intersection_line_Segmentline(line='a',segline_chain='A-B'):
             return [value_x,value_y]
         else:
             return None
+#这两个应该重写
+#=======
 
 
-    print(A,B)
-    print(seg_rangeX,seg_rangeY)
+def intersection_2line(Aline_letter_or_kba_dic, Bline_letter_or_kba_dic):
+    """
+    :param Aline_letter_or_kba_dic: 可以是代号，也可以是save_line(temp=true)的返回值：一个包含k，b，a的字典
+    :param Bline_letter_or_kba_dic: 可以是代号，也可以是save_line(temp=true)的返回值：一个包含k，b，a的字典
+    """
+    global line_dic
+    x=None
+    y=None
 
+    if isinstance(Aline_letter_or_kba_dic, str):
+        detail_dicA=line_dic[Aline_letter_or_kba_dic]
+    else:
+        detail_dicA = Aline_letter_or_kba_dic
+    if isinstance(Bline_letter_or_kba_dic, str):
+        detail_dicB=line_dic[Bline_letter_or_kba_dic]
+    else:
+        detail_dicB = Bline_letter_or_kba_dic
+    k_A = detail_dicA['k']
+    b_A = detail_dicA['b']
+    k_B = detail_dicB['k']
+    b_B = detail_dicB['b']
+    if 'a' in detail_dicA:
+        x = b_A/k_A
+    if 'a' in detail_dicB:
+        if x is not None:
+            return None
+        x = b_B/k_B
+    # y1=k_A*x+b_A
+    # y2=k_B*x+b_B
+    if k_A==k_B:
+        return None
+    if x is None:
+        x = (b_B - b_A) / (k_A - k_B)
+    y = k_A * x + b_A
+    return [x,y]
+def segmentline_shadow_on_axis(Chain_or_2pointxy):
+    """
+    求一条线段分别在x轴和y轴的投影
+    :param Chain_or_2pointxy: 既可以是A-B形式 也可以是[x,y][x,y]
+    :return: 返回一个列表，包含两个范围[[x_min, x_max], [y_min, y_max]]
+    """
+    global SegmentLine_dic
+    if isinstance(Chain_or_2pointxy, str):
+        A_pointlist=SegmentLine_dic[Chain_or_2pointxy]['location']
+        x1,y1=A_pointlist[0]
+        x2,y2=A_pointlist[1]
+    else:
+        x1, y1=Chain_or_2pointxy[0]
+        x2, y2=Chain_or_2pointxy[1]
+    x_range = [min(x1,x2),max(x1,x2)]
+    y_range = [min(y1,y2),max(y1,y2)]
+    return [x_range,y_range]
+def segmentline_to_line(chain_or_2pointxy,back_range=False,temp=False):
+    """
+    :param chain_or_2pointxy: 既可以是一个ChainA-B也可以是列表[[Ax,Ay], [Bx,By]]
+    :return: 返回一个代号, 例如：a
+    详细信息储存在字典line_dic[a]中
+    如果back_range 额外返回一个列表[[xmin,xmax],[ymin,ymax]]
+
+    """
+    if isinstance(chain_or_2pointxy,str):
+        global pointdic
+        Aletter, Bletter = chain_or_2pointxy.split('-')
+        x1, x2 = pointdic[Aletter][0], pointdic[Bletter][0]
+        y1, y2 = pointdic[Aletter][1], pointdic[Bletter][1]
+    else:
+        x1, y1=chain_or_2pointxy[0]
+        x2, y2=chain_or_2pointxy[1]
+
+
+    if x1==x2 and y1==y2:
+        raise ValueError('is not a line,this is a point')
+    if x1==x2:
+       a=0
+       b=x1
+       k=-1
+    else:
+       a=1
+    if y1==y2:
+       k=0
+       b=y1
+    if x1!=x2 and y1!=y2:
+       k = (y1 - y2) / (x1 - x2)
+       b = y1 - k * x1
+    back=save_line(k,b,a,temp)
+    if back_range is True:
+        range=segmentline_shadow_on_axis(chain_or_2pointxy)
+        back=back,range
+
+    return back
 
 
 #////////////《面操作》////////////
@@ -638,7 +767,7 @@ def save_surface(chain_of_point,floor=0,color=py5.color(200,200,20,255),fill=Fal
             surf_pointgroup.append(point_xy)
         else:
             return "false:cant find point by letter"
-    segmentlinegroup = trans_chain_to_pointletter_list(chain_of_point)
+    segmentlinegroup = tran_surfacechain_to_seglinechain(chain_of_point)
     for i in segmentlinegroup:
         #检查是否已经创建了线段 如果不存在就创建线段
         if i in SegmentLine_dic or i[::-1] in SegmentLine_dic:
@@ -665,10 +794,8 @@ def save_surface_by_pointlist(apointlist,floor=0,color=(200,200,20,255),fill=Fal
     theletter=droppoint_group_in_note(apointlist)
     chain="-".join(theletter)
     save_surface(chain,floor,color,fill,stroke,stroke_color)
-
 def split_surface_by_line(surface_chain, line_params):
-   trans_chain_to_pointletter_list(surface_chain)
-
+   tran_surfacechain_to_seglinechain(surface_chain)
 
 def is_point_in_surface(polx, P):
     """
@@ -707,7 +834,7 @@ def is_point_in_surface(polx, P):
         if abs(cross) > 1e-10:  # 允许微小误差
             return False
         # 判断是否在范围内
-        dot_product = np.dot(P - A, B - A)  # 投影点是否在 A->B 的方向上
+        dot_product = np.dot(P - A, B - A)  # 投影点是否在 Chain_or_2pointxy->B 的方向上
         squared_length = np.dot(B - A, B - A)  # AB 的平方长度
         return 0 <= dot_product <= squared_length
 
@@ -741,6 +868,11 @@ def HomoMatrix_to_local(matrix):
 
 #////////////《常用操作》////////////
 def ask_a_new_letter():
+    """
+    从字母列表a_letterlist中请求获得一个小写字母 并添加到当前已用列表now_a_list中
+    如果不够用会在a_letterlist中动态创建新的字母
+    :return: 一个小写字母 文本型
+    """
     global a_letterlist
     global now_a_list
     if len(a_letterlist) == 0:
@@ -753,10 +885,12 @@ def ask_a_new_letter():
             a_letterlist = [chr(i) + str(xuhao) for i in range(97, 123)]
     thekey = a_letterlist.pop(0)
     now_a_list.append(thekey)
-
     return thekey
-#从字母集中请求获得一个小写字母，并添加到当前已用集合中
 def del_a_letter(aletter):
+    """
+    从当前已用集合中删除一个小写字母，放回字母集中
+    :return:如果找不到 会返回：cant find the letter in : now_a_list
+    """
     global a_letterlist
     global now_a_list
     if aletter in now_a_list:
@@ -788,13 +922,12 @@ def del_a_letter(aletter):
         now_a_list.remove(aletter)
     else:
         return 'cant find the letter in : now_a_list'
-#从当前已用集合中删除一个小写字母，放回字母集中
 def point_to_line_distance(point, line_params):
     """
     计算点到直线的垂直距离
     :param point: 点的坐标 (x0, y0)
     :param line_params: 直线的参数 (a, b, c)，表示 ax + by + c = 0
-    :return: 点到直线的垂直距离
+    :return: 点到直线的垂直距离（浮点）
     """
     x0, y0 = point
     a, b, c = line_params
@@ -802,8 +935,14 @@ def point_to_line_distance(point, line_params):
     # 计算距离公式
     distance = abs(a * x0 + b * y0 + c) / math.sqrt(a ** 2 + b ** 2)
     return distance
-#计算点到直线距离，返回一个数
 def find_same_in_dic(d,seevaule=False):
+    """
+    找到字典中拥有相同值的key
+    :param d: 一个字典形
+    :param seevaule: 是否返回键值
+    :return:
+    seevaule=False 列表[[Chain_or_2pointxy,B,C],[D,E,F]] seevaule=Ture 字典{"[Chain_or_2pointxy,B,C]":[1,3],"[D,E]":[2,4]}
+    """
     value_to_keys = defaultdict(list)
     for key, value in d.items():
         value_to_keys[tuple(value)].append(key)  # 将键分组到相同值的列表中
@@ -813,20 +952,20 @@ def find_same_in_dic(d,seevaule=False):
        return duplicates
     duplicates = {value: keys for value, keys in value_to_keys.items() if len(keys) > 1}  # 只保留有重复的值
     return duplicates
-#找到字典中相同的值，返回一个列表[[A,B,C],[D,E,F]]
-#seevaule=True 返回{"[A,B,C]":[1,3],"[D,E]":[2,4]}
-#d接受的参数是一个字典形
-def check_same_pointdic_and_segmentlinedic():
-    print()
-def trans_chain_to_pointletter_list(chain):
-    nodes = chain.split("-")  # 将链式结构分解为节点列表["A", "B", "C"]
+def tran_surfacechain_to_seglinechain(chain):
+    """
+    给定一个字符串A-B-C将它切割成[Chain_or_2pointxy-B][B-C][C-Chain_or_2pointxy](注意是首尾相接的)
+    :param chain: 文本型，一个字符串 例：Chain_or_2pointxy-B-C
+    :return: [Chain_or_2pointxy-B][B-C][C-Chain_or_2pointxy]
+    """
+    nodes = chain.split("-")  # 将链式结构分解为节点列表["Chain_or_2pointxy", "B", "C"]
     # 生成相邻对
     pairs = [(nodes[i], nodes[i + 1]) for i in range(len(nodes) - 1)]
     # 加入首尾连接
-    pairs.append((nodes[-1], nodes[0]))# 结果: [('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A')]
+    pairs.append((nodes[-1], nodes[0]))# 结果: [('Chain_or_2pointxy', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'Chain_or_2pointxy')]
     formatted_pairs = [f"{a}-{b}" for a, b in pairs]
     return formatted_pairs
-#给定一个字符串A-B-C将它切割成[A-B][B-C][C-A]返回
+
 #=========================================
 
 #=============绘图渲染操作===================
@@ -905,11 +1044,16 @@ def ceshi3():
                                      strokeweight=random.randint(1,10))
     #print(pointdic)
 
-# save_Segmentline_by_ABpointxy([0,0],[200,200])
-save_Segmentline_by_ABpointxy([150,310],[200,310])
-save_line(2,10)
-print(intersection_line_Segmentline ('a','A-B'))
+A_chain=save_Segmentline_by_ABpointxy([0,0],[200,200])
+B_chain=save_Segmentline_by_ABpointxy([150,310],[200,310])
+print(segmentline_to_line(A_chain,back_range=True,temp=True))
 
+# save_line(2,10)
+# print(intersection_line_Segmentline ('a','Chain_or_2pointxy-B'))
+# for i in range (10):
+#     inter_p = intersection_2line(save_line(k=random.randint(-1000,100), b=random.randint(-100,100)), save_line(k=random.randint(1,100), b=random.randint(-100,100), a=random.randint(-100,100)))
+#     print(inter_p)
+#print (line_dic)
 #接下来
 
 
