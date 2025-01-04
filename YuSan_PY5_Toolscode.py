@@ -445,20 +445,20 @@ def remove_line(letter):
     else:
         return "can not find in dic"
 
-def solve_line(line_letter, x=None, y=None):
+def solve_line(line_letter_or_detaildic, x=None, y=None):
     """
     给定x或y，解决一个函数问题y=kx+b
-    :param line_letter: 直线的标识字母 例：a
+    :param line_letter_or_detaildic: 直线的标识字母 例：a,或者一个包含详细信息的字典
     a只能接受0或1
     """
     global line_dic
 
-    if isinstance(line_letter,dict):
-        detail_dic = line_letter
+    if isinstance(line_letter_or_detaildic, dict):
+        detail_dic = line_letter_or_detaildic
     else:
-        if not line_letter in line_dic:
+        if not line_letter_or_detaildic in line_dic:
             raise ValueError("没有找到直线，直线还未创建")
-        detail_dic = line_dic[line_letter]
+        detail_dic = line_dic[line_letter_or_detaildic]
 
     if x==None and y==None:
         raise ValueError("x，y都没有输入值 无法计算")
