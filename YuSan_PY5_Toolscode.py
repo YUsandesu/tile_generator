@@ -449,13 +449,20 @@ def solve_line(line_letter, x=None, y=None):
     """
     给定x或y，解决一个函数问题y=kx+b
     :param line_letter: 直线的标识字母 例：a
+    a只能接受0或1
     """
     global line_dic
-    if not line_letter in line_dic:
-        raise ValueError("没有找到直线，直线还未创建")
+
+    if isinstance(line_letter,dict):
+        detail_dic = line_letter
+    else:
+        if not line_letter in line_dic:
+            raise ValueError("没有找到直线，直线还未创建")
+        detail_dic = line_dic[line_letter]
+
     if x==None and y==None:
         raise ValueError("x，y都没有输入值 无法计算")
-    detail_dic = line_dic[line_letter]
+
     if 'a' in detail_dic:
         the_a=detail_dic['a']
     else:
@@ -472,6 +479,85 @@ def solve_line(line_letter, x=None, y=None):
         if the_k==0:
             raise ValueError("无法计算，因为k=0时y=0x+b 无法计算x")
         return (y-the_b)/the_k
+
+def solve_line_general(a=1, y=None, k=None, x=None, b=None, A_point=None, B_point=None):
+    """
+    使用矩阵方法求解线性方程 ay = kx + b 或根据两点 (x1, y1) 和 (x2, y2) 计算 k 和 b。
+    参数：
+        a, y, k, x, b: 任意提供 ay = kx + b 的四个变量，求解第五个变量。
+        A_point, B_point: 提供两点，求解 k 和 b，即使 x1 == x2 时也可以通过 a = 0 处理。
+    返回：
+        结果字典，包含已求解的变量及其值。
+        当 a=0 且 k 都未给出时，函数将默认返回 k=1 ，即方程 x=-b
+    """
+    if a!=1 and a!=0:
+        #如果存在a值任意的话，把函数当作ay+kx+b=0来处理
+        a=-a #我把这里添加了相反数是因为结尾输出的时候 是按照ay=kx+b书写的 所以-ay+kx+b=0
+    # 1. 根据两点计算 k 和 b
+    if A_point is not None and B_point is not None:
+        if any(i is not None for i in(y,k,x,b)) and a!=1:
+            raise ValueError("输入两点时候 请不要提供其它参数")
+        if len(A_point) != 2 or len(B_point) != 2:
+            raise ValueError("点格式不符合规范，A_point 和 B_point 应为 (x, y) 形式的元组或列表")
+        x1, y1 = A_point
+        x2, y2 = B_point
+        if x1 == x2:  # 特殊情况：x1 == x2，垂直线
+            return {
+                "a": 0,  # y 的系数为 0
+                "k": -1,  # 假设 k = -1
+                "b": x1,  # b = x1
+            }
+        else:  # 正常情况，使用矩阵方程计算 k 和 b
+            A = np.array([[x1, 1], [x2, 1]])
+            B = np.array([y1, y2])
+            result = np.linalg.solve(A, B)
+            return {"a": 1, "k": result[0], "b": result[1]}
+
+    # 2. 特殊情况：a = 0
+    if a == 0:
+        # 方程退化为 kx + b = 0
+        if k==0:
+                raise ValueError("0x+b=0")
+        if k is not None and b is not None:
+            return {"x": -b / k}
+        elif x is not None:
+            if k is None:
+                # 默认 k = 1
+                k = 1
+            return {"b": -k * x}
+        elif b is not None:
+            if k is None:
+                # 默认 k = 1
+                k = 1
+            return {"x": -b / k}
+        else:
+            raise ValueError("如果既没有 k，也没有 b，无解")
+
+    # 3. 确保 y = kx + b 中有3个已知变量
+    inputs = {"y": y, "k": k, "x": x, "b": b}
+    known_values = {key: value for key, value in inputs.items() if value is not None}
+    if len(known_values) != 3:
+        raise ValueError("必须提供 y = kx + b 的3个变量才能求解")
+
+    # 4. 根据未知变量求解，添加除零保护
+    elif y is None:
+        return {"y": (k * x + b) / a}
+    elif k is None:
+        if x == 0:
+            raise ZeroDivisionError("x 不能为零")
+        return {"k": (a * y - b) / x}
+    elif x is None:
+        if k == 0:
+            raise ZeroDivisionError("k 不能为零")
+        return {"x": (a * y - b) / k}
+    elif b is None:
+        return {"b": a * y - k * x}
+
+    # 如果所有变量都已知，直接返回
+    return known_values
+
+
+
 def line_segment_intersection_Matrix(Aline, Bline):
     """
     使用矩阵方法 numpy 计算两条线段的交点
