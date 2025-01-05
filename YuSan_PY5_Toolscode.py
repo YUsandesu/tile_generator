@@ -5,12 +5,12 @@ from collections import defaultdict
 import sympy as sym
 import math
 
-from IPython.testing.decorators import skipif
+# from IPython.testing.decorators import skipif
 from PyQt5.QtCore import center
-from anyio import value
-from conda.instructions import PRINT
-from numba.core.ir import Raise
-from numpy.matrixlib.defmatrix import matrix
+# from anyio import value
+# from conda.instructions import PRINT
+# from numba.core.ir import Raise
+# from numpy.matrixlib.defmatrix import matrix
 from py5 import point
 
 pointdic={}
