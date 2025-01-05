@@ -123,7 +123,7 @@ def draw():
         # Sort intersection points by distance from center for consistent numbering
         sorted_points = sorted(
             data['intersectionPoints'].values(),
-            key=lambda pt: math.sqrt(pt['x']**2 + pt['y']**2)
+            key=lambda pt: math.sqrt(pt['x']**2 + pt['y']**2) # condition: add circle around center
         )
         
         for i, pt in enumerate(sorted_points):

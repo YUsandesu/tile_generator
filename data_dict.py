@@ -25,6 +25,6 @@ base_data = {
     'inverseEpsilon': 1e6,
     'canvas1Resized': False,
     'canvas2Resized': False,
-    'width': 800,
-    'height': 800,
+    'width': 1800,
+    'height': 1200,
 }

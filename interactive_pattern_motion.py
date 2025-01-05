@@ -1,110 +1,17 @@
 import py5_tools
 py5_tools.add_jars('./jars')
 import py5
-from controlP5 import ControlP5, Slider, Toggle
+from controlP5 import ControlP5
 import math
-import hsluv
 from data_dict import base_data
 from data_generation import (
     calculate_offsets, multiplier, steps, spacing, 
     compute_grid, sin_cos_table, sin_cos_rotate, shift,
-    calculate_intersection_points, calculate_colors,
-    calculate_color_palette
+    calculate_intersection_points
 )
 import cv2
 import numpy as np
 
-def setup():
-    global cp5, data, cap, old_gray, p0, mask, tile_positions, original_positions
-    global optical_flow_active, camera_initialized
-    global last_motion_time, last_reset_time
-    global tile_velocities
-    py5.size(1200, 900)
-    
-    # Initialize flags and timers
-    optical_flow_active = False
-    camera_initialized = False
-    last_motion_time = 0
-    last_reset_time = 0
-    
-    # Initialize data from base_data
-    data = base_data.copy()
-    data['width'] = py5.width
-    data['height'] = py5.height - 100
-    
-    # Initialize position and velocity tracking
-    tile_positions = {}
-    original_positions = {}
-    tile_velocities = {}
-    
-    # Spring and motion parameters
-    global SPRING_K, DAMPING, MASS
-    SPRING_K = 0.1  # Reduced from 0.5 to make spring looser
-    DAMPING = 0.8   
-    MASS = 1.0
-    
-    # Create control panel
-    cp5 = ControlP5(py5.get_current_sketch())
-    
-    # Add controls at the bottom
-    controls_y = py5.height - 80
-    spacing_x = 180
-    current_x = 20
-    
-    # Symmetry slider
-    (cp5.addSlider('symmetry')
-        .setPosition(current_x, controls_y)
-        .setSize(150, 20)
-        .setRange(3, 12)
-        .setValue(data['symmetry'])
-        .onChange(lambda e: update_pattern()))
-    current_x += spacing_x
-    
-    # Radius slider
-    (cp5.addSlider('radius')
-        .setPosition(current_x, controls_y)
-        .setSize(150, 20)
-        .setRange(10, 150)
-        .setValue(data['radius'])
-        .onChange(lambda e: update_pattern()))
-    current_x += spacing_x
-    
-    # Pattern slider
-    (cp5.addSlider('pattern')
-        .setPosition(current_x, controls_y)
-        .setSize(150, 20)
-        .setRange(0, 1)
-        .setValue(data['pattern'])
-        .onChange(lambda e: update_pattern()))
-    current_x += spacing_x
-    
-    # Disorder slider
-    (cp5.addSlider('disorder')
-        .setPosition(current_x, controls_y)
-        .setSize(150, 20)
-        .setRange(0, 1)
-        .setValue(data['disorder'])
-        .onChange(lambda e: update_pattern()))
-    current_x += spacing_x
-    
-    # Zoom slider
-    (cp5.addSlider('zoom')
-        .setPosition(current_x, controls_y)
-        .setSize(150, 20)
-        .setRange(0.1, 2)
-        .setValue(data['zoom'])
-        .onChange(lambda e: update_pattern()))
-    current_x += spacing_x
-    
-    # Optical Flow Toggle
-    (cp5.addToggle('optical_flow')
-        .setPosition(current_x, controls_y)
-        .setSize(50, 20)
-        .setValue(False)
-        .onChange(lambda e: toggle_optical_flow()))
-    
-    # Initial pattern generation
-    update_pattern()
 
 def toggle_optical_flow():
     global optical_flow_active, camera_initialized, cap, old_gray, p0, mask
@@ -304,6 +211,103 @@ def process_optical_flow():
             old_gray = frame_gray.copy()
             p0 = good_new.reshape(-1, 1, 2)
 
+def dispose():
+    if camera_initialized:
+        cap.release()
+        cv2.destroyAllWindows()
+
+def setup():
+    global cp5, data, cap, old_gray, p0, mask, tile_positions, original_positions
+    global optical_flow_active, camera_initialized
+    global last_motion_time, last_reset_time
+    global tile_velocities
+    py5.size(1200, 900)
+    
+    # Initialize flags and timers
+    optical_flow_active = False
+    camera_initialized = False
+    last_motion_time = 0
+    last_reset_time = 0
+    
+    # Initialize data from base_data
+    data = base_data.copy()
+    data['width'] = py5.width
+    data['height'] = py5.height - 100
+    
+    # Initialize position and velocity tracking
+    tile_positions = {}
+    original_positions = {}
+    tile_velocities = {}
+    
+    # Spring and motion parameters
+    global SPRING_K, DAMPING, MASS
+    SPRING_K = 0.1  # Reduced from 0.5 to make spring looser
+    DAMPING = 0.8   
+    MASS = 1.0
+    
+    # Create control panel
+    cp5 = ControlP5(py5.get_current_sketch())
+    
+    # Add controls at the bottom
+    controls_y = py5.height - 80
+    spacing_x = 180
+    current_x = 20
+    
+    # Symmetry slider
+    (cp5.addSlider('symmetry')
+        .setPosition(current_x, controls_y)
+        .setSize(150, 20)
+        .setRange(3, 12)
+        .setValue(data['symmetry'])
+        .onChange(lambda e: update_pattern()))
+    current_x += spacing_x
+    
+    # Radius slider
+    (cp5.addSlider('radius')
+        .setPosition(current_x, controls_y)
+        .setSize(150, 20)
+        .setRange(10, 150)
+        .setValue(data['radius'])
+        .onChange(lambda e: update_pattern()))
+    current_x += spacing_x
+    
+    # Pattern slider
+    (cp5.addSlider('pattern')
+        .setPosition(current_x, controls_y)
+        .setSize(150, 20)
+        .setRange(0, 1)
+        .setValue(data['pattern'])
+        .onChange(lambda e: update_pattern()))
+    current_x += spacing_x
+    
+    # Disorder slider
+    (cp5.addSlider('disorder')
+        .setPosition(current_x, controls_y)
+        .setSize(150, 20)
+        .setRange(0, 1)
+        .setValue(data['disorder'])
+        .onChange(lambda e: update_pattern()))
+    current_x += spacing_x
+    
+    # Zoom slider
+    (cp5.addSlider('zoom')
+        .setPosition(current_x, controls_y)
+        .setSize(150, 20)
+        .setRange(0.1, 2)
+        .setValue(data['zoom'])
+        .onChange(lambda e: update_pattern()))
+    current_x += spacing_x
+    
+    # Optical Flow Toggle
+    (cp5.addToggle('optical_flow')
+        .setPosition(current_x, controls_y)
+        .setSize(50, 20)
+        .setValue(False)
+        .onChange(lambda e: toggle_optical_flow()))
+    
+    # Initial pattern generation
+    update_pattern()
+
 def draw():
     py5.background(51)
     
@@ -375,9 +379,5 @@ def draw():
     py5.no_stroke()
     py5.rect(0, py5.height-100, py5.width, 100)
 
-def dispose():
-    if camera_initialized:
-        cap.release()
-        cv2.destroyAllWindows()
-
-py5.run_sketch() 
+if __name__ == '__main__':
+    py5.run_sketch() 
