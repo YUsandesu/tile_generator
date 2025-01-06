@@ -1093,6 +1093,7 @@ def screen_drawlines(color=0,strok_weight=2):
     py5.lines(np.array(pointlist,dtype=np.float32))
     #这里lines接收的是Np中的四维浮点数组[a b c d]
 def screen_drawlines_detail(floor):
+
     for key, val in SegmentLine_dic.items():
         if val['floor']!=floor:
             continue
@@ -1102,7 +1103,8 @@ def screen_drawlines_detail(floor):
         py5.stroke(color)
         strokeweigh=val['stroke_weight']
         py5.stroke_weight(strokeweigh)
-        py5.line(*val['location'])
+        local_group=[a for i in val['location'] for a in i]
+        py5.line(*local_group)
 def screen_draw():
     for f in range(0,3):
         screen_draw_surface(f)
@@ -1126,7 +1128,7 @@ def ceshi3():
     for i in range(50):
         save_Segmentline_by_ABletter(random.choice(list(pointdic.keys())), random.choice(list(pointdic.keys())),
                                      floor=random.randint(0,3),
-                                     color=tuple(np.random.randint(0, 200, size=3)),
+                                     color=py5.color(*np.random.randint(0, 200, size=4)),
                                      strokeweight=random.randint(1,10))
     #print(pointdic)
 
