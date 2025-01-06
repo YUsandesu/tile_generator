@@ -80,7 +80,7 @@ def setup():
     print(YT.SurfChain_to_HomoMatrix(list(surfacedic.keys())[0]))
     print(surfacedic)
     print (YT.HomoMatrix_to_local(YT.SurfChain_to_HomoMatrix(list(surfacedic.keys())[0])))
-    py5.frame_rate(5) #设置帧率
+    py5.frame_rate(30) #设置帧率
 def draw():
     YT.ceshi3()
 
