@@ -11,6 +11,7 @@ from data_generation import (
     calculate_intersection_points, calculate_colors,
     calculate_color_palette
 )
+import json
 
 def setup():
     global cp5, data
@@ -125,20 +126,23 @@ def draw():
             data['intersectionPoints'].values(),
             key=lambda pt: math.sqrt(pt['x']**2 + pt['y']**2) # condition: add circle around center
         )
+        tile_dict = {}
         
         for i, pt in enumerate(sorted_points):
             # Calculate center of the tile
             center_x = sum(dp['x'] for dp in pt['dualPts']) / len(pt['dualPts'])
             center_y = sum(dp['y'] for dp in pt['dualPts']) / len(pt['dualPts'])
-            
+            point_list = []
             # Draw tile outline
             py5.fill(200, 200, 200, 100)  # Light gray semi-transparent fill
             py5.begin_shape()
             for dual_pt in pt['dualPts']:
-                py5.vertex(
+                point = (
                     dual_pt['x'] * data['spacing'],
                     dual_pt['y'] * data['spacing']
                 )
+                py5.vertex(*point)
+                point_list.append(point)
             py5.end_shape(py5.CLOSE)
             
             # Draw tile number
@@ -152,10 +156,14 @@ def draw():
             py5.text(str(i+1), 
                     center_x * data['spacing'], 
                     center_y * data['spacing'])
+            tile_dict[str(i+1)] = point_list
     
     # Draw control area background
     py5.fill(40)
     py5.no_stroke()
     py5.rect(0, py5.height-100, py5.width, 100)
+    
+    with open('tile_result.json', 'w') as file:
+        json.dump(tile_dict, file, indent=4)
 
 py5.run_sketch() 
