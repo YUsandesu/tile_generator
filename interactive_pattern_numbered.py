@@ -12,6 +12,10 @@ from data_generation import (
     calculate_color_palette
 )
 import json
+import pygame
+
+pygame.mixer.init()
+pygame.mixer.music.load('ai_pipeline/music.mid')
 
 def setup():
     global cp5, data
@@ -77,6 +81,7 @@ def setup():
     
     # Initial pattern generation
     update_pattern()
+    pygame.mixer.music.play()
 
 def update_pattern():
     """Update the pattern based on current control values"""
