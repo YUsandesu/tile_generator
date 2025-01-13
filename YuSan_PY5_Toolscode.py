@@ -876,7 +876,7 @@ def save_surface(chain_of_point,floor=0,color=py5.color(200,200,20,255),fill=Fal
     surfacedic[chain_of_point]=nowdic
     return surf_pointgroup
 #【center】会自动生成在参数字典中：重心:是所有顶点坐标的平均值
-def save_surface_by_pointlist(apointlist,floor=0,color=py5.color(200,200,20,255),fill=False,stroke=None,stroke_color=(0,0,0)):
+def save_surface_by_pointlist(apointlist,floor=0,color=py5.color(200,200,20,255),fill=False,stroke=None,stroke_color=py5.color(0,0,0)):
     theletter=droppoint_group_in_note(apointlist)
     chain="-".join(theletter)
     save_surface(chain,floor,color,fill,stroke,stroke_color)
