@@ -5,6 +5,8 @@ from collections import defaultdict
 import sympy as sym
 import math
 
+from PyQt5.QtCore import center
+from py5 import point
 
 pointdic={}
 letterlist = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 A-Z

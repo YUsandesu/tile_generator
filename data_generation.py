@@ -8,7 +8,7 @@ import time
 from log_tool import decorate_all_functions, print_summary
 import sys
 
-def approx(value):
+def approx(value, data):
     return round(value * data['inverseEpsilon']) / data['inverseEpsilon']
 
 def dist(x1, y1, x2, y2):
@@ -82,7 +82,7 @@ def calculate_intersection_points(data, grid, sin_cos_table):
                     # optimization: only list intersection points viewable on screen
                     if abs(xprime * spacing) <= width / 2 + spacing and abs(yprime * spacing) <= height / 2 + spacing:
                         if (steps == 1 and dist(x, y, 0, 0) <= 0.5 * steps) or dist(x, y, 0, 0) <= 0.5 * (steps - 1):
-                            index = json.dumps([approx(x), approx(y)])
+                            index = json.dumps([approx(x, data), approx(y, data)])
                             if index in pts.keys():
                                 if line1 not in pts[index]['lines']:
                                     pts[index]['lines'].append(line1)
@@ -94,7 +94,7 @@ def calculate_intersection_points(data, grid, sin_cos_table):
     for pt in pts.values():
         angles = [line['angle'] * multiplier for line in pt['lines']]
         angles2 = [(angle + math.pi) % (2 * math.pi) for angle in angles]
-        angles = sorted(set(approx(angle) for angle in angles + angles2))
+        angles = sorted(set(approx(angle, data) for angle in angles + angles2))
 
         offset_pts = [{'x': pt['x'] - epsilon * math.sin(angle), 'y': pt['y'] + epsilon * math.cos(angle)} for angle in angles]
 
@@ -180,7 +180,7 @@ def calculate_color_palette(intersection_points, orientation_coloring, colors, r
         s = lerp(start[1], end[1], i / range_val)
         l = lerp(start[2], end[2], i / range_val)
         color = hsluv.hsluv_to_rgb([h, s, l])
-        color = [round(255 * c) for c in color]
+        color = [round(255 * c) for c in color] # To RGB
         color_palette.append({
             'fill': rgb_to_hex(*color),
             'points': normalize(tile['dualPts']),

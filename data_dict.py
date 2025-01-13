@@ -1,8 +1,8 @@
 # Sample fixed data input
 base_data = {
-    'symmetry': 5,
+    'symmetry': 3,
     'radius': 75,
-    'pattern': 0.2,
+    'pattern': 0.0,
     'pan': 0.0,
     'disorder': 0.0,
     'randomSeed': 0,
@@ -25,6 +25,6 @@ base_data = {
     'inverseEpsilon': 1e6,
     'canvas1Resized': False,
     'canvas2Resized': False,
-    'width': 800,
-    'height': 800,
+    'width': 1800,
+    'height': 1200,
 }
