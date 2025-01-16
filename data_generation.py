@@ -7,29 +7,48 @@ from data_dict import base_data
 import time 
 from log_tool import decorate_all_functions, print_summary
 import sys
+"""
+symmetry: 对称性，是整数，表示对称分割的数量
+zoom: 整体缩放比例
+steps:分布密度（步长越多，间距越小）
 
+"""
 def approx(value, data):
+    """
+    精确度：取value小数点后面位数（data）
+    """
     return round(value * data['inverseEpsilon']) / data['inverseEpsilon']
-
+    #round对放大的数进行四舍五入，得到一个整数
 def dist(x1, y1, x2, y2):
+    """
+    计算两点之间的欧几里得距离
+    """
     return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-
 def calculate_offsets(symmetry, pattern, disorder, random_seed, pan, steps, shift):
     offsets = [pattern] * symmetry
+    #生成一个长度为 symmetry 的列表，初始所有元素的值都等于 pattern。
+    #例如：如果 symmetry=4  pattern=10，初始 offsets 是 [10, 10, 10, 10]。
     if disorder > 0:
         random.seed(f'random seed {symmetry} and {random_seed}')
+        #设置种子可以确保每次运行程序时，生成的随机数序列相同。这样便于调试和复现结果。
         offsets = [e + disorder * (random.random() - 0.5) for e in offsets]
+
     if pan > 0:
         offsets = [e - steps * pan * shift[i] for i, e in enumerate(offsets)]
     return offsets
-
 def multiplier(symmetry):
+    """
+    返回一个圆(2pi)被均匀分割成 symmetry 份后，每份对应的弧度大小
+    """
     return 2 * math.pi / symmetry
-
 def steps(radius, symmetry):
     return 2 * round((radius / (symmetry - 1) - 1) / 2) + 1
 
 def spacing(zoom, width, height, steps):
+    """
+    计算[等距steps]分布的间距
+    zoom：缩放比例
+    """
     return zoom * min(width, height) / steps
 
 def make1Dgrid(steps):
