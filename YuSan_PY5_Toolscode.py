@@ -6,7 +6,9 @@ import sympy as sym
 import math
 
 from PyQt5.QtCore import center
-from py5 import point
+from decorator import append
+from ply.cpp import xrange
+from py5 import point, stroke_weight
 
 pointdic={}
 letterlist = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 A-Z
@@ -440,13 +442,86 @@ def save_line(k,b,a=1,temp=False):
     newletter= ask_a_new_letter()
     line_dic[newletter]=detaildic
     return newletter
+def line_to_Segmentline(line,x_range=None,y_range=None,floor=0, color=py5.color(0, 0, 0, 255), strokeweight=3, visible=True):
+    inputvalue={'floor':floor,'color':color,'strokeweight':strokeweight,'visible':visible}
+    def xrange_to_Segline(range):
+        range_min = range[0]
+        range_max = range[1]
+        back = save_Segmentline_by_ABpointxy(
+            Apoint=[range_min, solve_line(line, x=range_min)],
+            Bpoint=[range_max, solve_line(line, x=range_max)],
+            **inputvalue
+        )
+        return back
+    if x_range is None and y_range is None:
+        x_range = [0, py5.width]
+        y_range = [0, py5.height]
+        y_to_x_min = solve_line(line, y_range[0])
+        y_to_x_max = solve_line(line, y_range[1])
+        y_to_x_range=[y_to_x_min,y_to_x_max]
+        new_range_x = get_inter_range(x_range, y_to_x_range)
+        return xrange_to_Segline(new_range_x)
+    if x_range is not None and y_range is None:
+        xmin=min(x_range[0],x_range[1])
+        xmax=max(x_range[0],x_range[1])
+        if xmin==xmax:
+            raise ValueError (f"输入的范围{x_range}有误,是一个点而不是范围")
+        return xrange_to_Segline([xmin,xmax])
+    if y_range is not None and x_range is None:
+        if y_range[0]==y_range[1]:
+            raise ValueError(f"输入的范围{y_range}有误,是一个点而不是范围")
+        x1=solve_line(line,y=y_range[0])
+        x2=solve_line(line,y=y_range[1])
+        xmin=min(x1,x2)
+        xmax=max(x1,x2)
+        return xrange_to_Segline([xmin, xmax])
+    if x_range is not None and y_range is not None:
+        y_to_x_min = solve_line(line, y_range[0])
+        y_to_x_max = solve_line(line, y_range[1])
+        y_to_x_range = [y_to_x_min, y_to_x_max]
+        new_range_x = get_inter_range(x_range, y_to_x_range)
+        if new_range_x is None:
+            raise ValueError(f"获取{x_range}和{y_to_x_range}交集失败")
+        if new_rangex[0]==new_rangex[1]:
+            raise ValueError(f"输入的范围{x_range}有误,是一个点而不是范围")
+        return xrange_to_Segline(new_range_x)
+def get_inter_range(a=None, b=None):
+    def get_range(interval):
+        # 提取范围的辅助函数
+        return min(interval[0], interval[1]), max(interval[0], interval[1])
+    if a is not None and b is not None:
+        if len(a) == 2 and len(b) == 2:
+            amin, amax = get_range(a)
+            bmin, bmax = get_range(b)
+            new_max = min(amax, bmax)
+            new_min = max(amin, bmin)
+            # 检查是否有交集
+            if new_min <= new_max:
+                return [new_min, new_max]
+            else:
+                return None  # 无交集
+        else:
+            raise ValueError(f"输入{a}或{b}不是[x,y]形式")
+    elif a is not None:
+        if len(a) == 2:
+            return list(get_range(a))
+        else:
+            raise ValueError(f"输入{a}不是[x,y]形式")
+    elif b is not None:
+        if len(b) == 2:
+            return list(get_range(b))
+        else:
+            raise ValueError(f"输入{b}不是[x,y]形式")
+    else:
+        return None  # a 和 b 都为 None
+
+
 def remove_line(letter):
     if letter in line_dic:
         del line_dic[letter]
         del_a_letter(letter)
     else:
         return "can not find in dic"
-
 def solve_line(line_letter_or_detaildic, x=None, y=None):
     """
     给定x或y，解决一个函数问题y=kx+b
@@ -481,7 +556,6 @@ def solve_line(line_letter_or_detaildic, x=None, y=None):
         if the_k==0:
             raise ValueError("无法计算，因为k=0时y=0x+b 无法计算x")
         return (y-the_b)/the_k
-
 def solve_line_general(a=1, y=None, k=None, x=None, b=None, A_point=None, B_point=None):
     """
     使用矩阵方法求解线性方程 ay = kx + b 或根据两点 (x1, y1) 和 (x2, y2) 计算 k 和 b。
@@ -557,9 +631,6 @@ def solve_line_general(a=1, y=None, k=None, x=None, b=None, A_point=None, B_poin
 
     # 如果所有变量都已知，直接返回
     return known_values
-
-
-
 def line_segment_intersection_Matrix(Aline, Bline):
     """
     使用矩阵方法 numpy 计算两条线段的交点
