@@ -8,6 +8,9 @@ import random
 
 
 class Tools2D:
+    """
+    有向线段（Directed Segment）：它是一个具体的几何对象，表示从一个起点到一个终点的线段，并且明确指出了方向（从起点到终点）。
+    """
     def __init__(self):
         self.pointdic = {}  # 存储点的字典
         self.letterlist = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 A-Z
@@ -249,6 +252,13 @@ class Tools2D:
         self.line_dic[newletter] = detaildic
         return newletter
 
+    def line_remove(self, letter):
+        if letter in self.line_dic:
+            del self.line_dic[letter]
+            self.del_a_letter(letter)
+        else:
+            return "can not find in dic"
+
     def line_to_Segmentline(self, line, x_range=None, y_range=None, floor=0, color=py5.color(0, 0, 0, 255), strokeweight=3,
                             visible=True):
         inputvalue = {'floor': floor, 'color': color, 'strokeweight': strokeweight, 'visible': visible}
@@ -257,53 +267,51 @@ class Tools2D:
             range_min = range[0]
             range_max = range[1]
             back = self.Segmentline_drop_by_2pointxy(
-                Apoint=[range_min, self.solve_line(line, x=range_min)],
-                Bpoint=[range_max, self.solve_line(line, x=range_max)],
+                Apoint=[range_min, self.line_solve(line, x=range_min)],
+                Bpoint=[range_max, self.line_solve(line, x=range_max)],
                 **inputvalue
             )
             return back
 
         if x_range is None and y_range is None:
-            x_range = [0, py5.width]
-            y_range = [0, py5.height]
-            y_to_x_min = self.solve_line(line, y_range[0])
-            y_to_x_max = self.solve_line(line, y_range[1])
-            y_to_x_range = [y_to_x_min, y_to_x_max]
-            new_range_x = self.get_inter_range(x_range, y_to_x_range)
-            return xrange_to_Segline(new_range_x)
+            #如果没有提供取值范围,就使用屏幕范围
+            # x_range = [0, py5.width]
+            # y_range = [0, py5.height]
+            # y_to_x_min = self.line_solve(line, y_range[0])
+            # y_to_x_max = self.line_solve(line, y_range[1])
+            # y_to_x_range = [y_to_x_min, y_to_x_max]
+            # new_range_x = self.get_inter_range(x_range, y_to_x_range)
+            # return xrange_to_Segline(new_range_x)
+            raise ValueError("没有提供取值范围")
         if x_range is not None and y_range is None:
+            #如果提供了x范围
             xmin = min(x_range[0], x_range[1])
             xmax = max(x_range[0], x_range[1])
             if xmin == xmax:
                 raise ValueError(f"输入的范围{x_range}有误,是一个点而不是范围")
             return xrange_to_Segline([xmin, xmax])
         if y_range is not None and x_range is None:
+            #如果提供的是y的范围,那么就换算成x的范围
             if y_range[0] == y_range[1]:
                 raise ValueError(f"输入的范围{y_range}有误,是一个点而不是范围")
-            x1 = self.solve_line(line, y=y_range[0])
-            x2 = self.solve_line(line, y=y_range[1])
+            x1 = self.line_solve(line, y=y_range[0])
+            x2 = self.line_solve(line, y=y_range[1])
             xmin = min(x1, x2)
             xmax = max(x1, x2)
             return xrange_to_Segline([xmin, xmax])
         if x_range is not None and y_range is not None:
-            y_to_x_min = self.solve_line(line, y_range[0])
-            y_to_x_max = self.solve_line(line, y_range[1])
+            #如果都提供了,就把y也换算成x的范围,然后调用get_inter_range找到交集
+            y_to_x_min = self.line_solve(line, y=y_range[0])
+            y_to_x_max = self.line_solve(line, y=y_range[1])
             y_to_x_range = [y_to_x_min, y_to_x_max]
             new_range_x = self.get_inter_range(x_range, y_to_x_range)
             if new_range_x is None:
                 raise ValueError(f"获取{x_range}和{y_to_x_range}交集失败")
-            if new_rangex[0] == new_rangex[1]:
+            if new_range_x[0] == new_range_x[1]:
                 raise ValueError(f"输入的范围{x_range}有误,是一个点而不是范围")
             return xrange_to_Segline(new_range_x)
 
-    def line_remove(self, letter):
-        if letter in self.line_dic:
-            del self.line_dic[letter]
-            self.del_a_letter(letter)
-        else:
-            return "can not find in dic"
-
-    def solve_line(self, line_letter_or_detaildic, x=None, y=None):
+    def line_solve(self, line_letter_or_detaildic, x=None, y=None):
         """
         给定x或y，解决一个函数问题y=kx+b
         :param line_letter_or_detaildic: 直线的标识字母 例：a,或者一个包含详细信息的字典
@@ -336,7 +344,7 @@ class Tools2D:
                 raise ValueError("无法计算，因为k=0时y=0x+b 无法计算x")
             return (y - the_b) / the_k
 
-    def solve_line_general(self, a=1, y=None, k=None, x=None, b=None, A_point=None, B_point=None):
+    def line_solve_general(self, a=1, y=None, k=None, x=None, b=None, A_point=None, B_point=None):
         """
         使用矩阵方法求解线性方程 ay = kx + b 或根据两点 (x1, y1) 和 (x2, y2) 计算 k 和 b。
         参数：
@@ -479,7 +487,7 @@ class Tools2D:
         if Bx1 == Bx2 and By1 == By2:
             # raise ValueError('B线是一个点')
             temp_line_letter = self.Segmentline_to_line([A_seg_Chain_or_2pointxy[0], A_seg_Chain_or_2pointxy[1]])
-            if By1 == self.solve_line(temp_line_letter, x=Bx1) and Bx1 == self.solve_line(temp_line_letter, y=By1):
+            if By1 == self.line_solve(temp_line_letter, x=Bx1) and Bx1 == self.line_solve(temp_line_letter, y=By1):
                 self.line_remove(temp_line_letter)
                 return Bx1, By1
             else:
@@ -488,7 +496,7 @@ class Tools2D:
         if Ax1 == Ax2 and Ay1 == Ay2:
             # raise ValueError('A线是一个点')
             temp_line_letter = self.Segmentline_to_line([B_seg_Chain_or_2pointxy[0], B_seg_Chain_or_2pointxy[1]])
-            if Ay1 == self.solve_line(temp_line_letter, x=Ax1) and Ax1 == self.solve_line(temp_line_letter, y=Ay1):
+            if Ay1 == self.line_solve(temp_line_letter, x=Ax1) and Ax1 == self.line_solve(temp_line_letter, y=Ay1):
                 self.line_remove(temp_line_letter)
                 return Ax1, Ay1
             else:
@@ -563,15 +571,15 @@ class Tools2D:
                         # raise ValueError('范围仅为一个点')
                         print('范围仅为一个点')
                         letter_theline = self.Segmentline_to_line(segline_chain)
-                        if self.solve_line(letter_theline, x=final_range_x[0]) == final_range_y[0]:
+                        if self.line_solve(letter_theline, x=final_range_x[0]) == final_range_y[0]:
                             # 如果把点的x坐标带入直线中，得到的y值刚好是点的y坐标
 
                             return [final_range_x[0], final_range_y[0]]
                         else:
                             return None
                     temp_Ax, temp_Bx = final_range_x[0], final_range_x[1]
-                    temp_Ay = self.solve_line(line, x=temp_Ax)
-                    temp_By = self.solve_line(line, x=temp_Bx)
+                    temp_Ay = self.line_solve(line, x=temp_Ax)
+                    temp_By = self.line_solve(line, x=temp_Bx)
                     temp_A, temp_B = [temp_Ax, temp_Ay], [temp_Bx, temp_By]
                     inter_point = self.intersection_2_Segmentline([temp_A, temp_B], [A, B])
                     return inter_point
@@ -580,7 +588,7 @@ class Tools2D:
                 if seg_rangeY[0] <= self.line_dic[line]['b'] <= seg_rangeY[1]:
                     value_y = self.line_dic[line]['b']
                     the_line = self.Segmentline_to_line(segline_chain)
-                    value_x = self.solve_line(the_line, y=value_y)
+                    value_x = self.line_solve(the_line, y=value_y)
                     return [value_x, value_y]
                 else:
                     return None
@@ -591,7 +599,7 @@ class Tools2D:
             if seg_rangeY[0] <= self.line_dic[line]['b'] / -self.line_dic[line]['k'] <= seg_rangeY[1]:
                 value_x = self.line_dic[line]['b'] / -self.line_dic[line]['k']
                 the_line = self.Segmentline_to_line(segline_chain)
-                value_y = self.solve_line(the_line, x=value_x)
+                value_y = self.line_solve(the_line, x=value_x)
                 return [value_x, value_y]
             else:
                 return None
@@ -719,7 +727,7 @@ class Tools2D:
             return abs(detail_line_dic[b] - point_x)
         k_orth = -1 / detail_line_dic['k']
         # 斜率是-1/k的时候垂直
-        result=self.solve_line_general(a=1, k=k_orth,x=point_x,y=point_y)
+        result=self.line_solve_general(a=1, k=k_orth, x=point_x, y=point_y)
         b=result['b']
         line_orth_dic = self.line_drop(temp=True,k=k_orth,b=b,a=1)
         point = [point_x, point_y]
@@ -727,13 +735,22 @@ class Tools2D:
         return self.distance_2_points(point,point_inter)
 
 
-
-
     # ////////////《面操作》////////////
+    def intersection_line_and_surface(self,line,surface):
+        """
+        line:通用型,chain和2pointxy皆可
+        """
+        the_line = self.line_chain_or_dic(line)
+
+
+    def surface_spilt_by_line(self, surface_chain, line_params):
+        self.surface_chain_to_Segline_group(surface_chain)
+
     def surface_drop_by_chain(self, chain_of_point, floor=0, color=py5.color(200, 200, 20, 255), fill=False, stroke=None,
                               stroke_color=py5.color(0, 0, 0)):
         """
         【center】会自动生成在参数字典中：重心:是所有顶点坐标的平均值
+        这里输入的链是不一定需要收尾相接的,如果不相接会自动补全
         """
         surf_pointgroup = []
         alist_of_point = chain_of_point.split('-')
@@ -743,14 +760,7 @@ class Tools2D:
                 surf_pointgroup.append(point_xy)
             else:
                 return "false:cant find point by letter"
-        segmentlinegroup = self.tran_surfacechain_to_seglinechain(chain_of_point)
-        for i in segmentlinegroup:
-            # 检查是否已经创建了线段 如果不存在就创建线段
-            if i in self.SegmentLine_dic or i[::-1] in self.SegmentLine_dic:
-                continue
-            else:
-                q = i.split('-')
-                self.Segmentline_drop_by_2pointletter(q[0], q[1], visible=False)
+        self.surface_chain_to_Segline_group(chain_of_point,visible=False) #确保线段都创建了
         nowdic = {}
         nowdic['floor'] = floor
         all_x, all_y = 0, 0
@@ -768,15 +778,41 @@ class Tools2D:
 
     def surface_drop_by_pointlist(self, apointlist, floor=0, color=py5.color(200, 200, 20, 255), fill=False, stroke=None,
                                   stroke_color=py5.color(0, 0, 0)):
+        """
+        这里输入的链是不需要收尾相接的,如果不相接会自动补全
+        """
         theletter = self.point_drop_group(apointlist)
         chain = "-".join(theletter)
         self.surface_drop_by_chain(chain, floor, color, fill, stroke, stroke_color)
 
-    def surface_spilt_by_line(self, surface_chain, line_params):
-        self.tran_surfacechain_to_seglinechain(surface_chain)
+
+    def surface_chain_to_Segline_group(self, chain,floor=0, color=py5.color(0, 0, 0, 255), strokeweight=3,
+                                         visible=True):
+        """
+        给定一个字符串A-B-C,返回[A-B][B-C][C-A](返回的是首尾相接的,输入的不一定需要收尾相接)
+        如果seglinedic中不存在这个线段 那么就会自动创建
+        :param chain: 文本型，一个字符串 例：A-B-C
+        :return: [A-B][B-C][C-A]
+        """
+        nodes = chain.split("-")  # 将链式结构分解为节点列表["A", "B", "C"]
+        # 生成相邻对
+        pairs = [(nodes[i], nodes[i + 1]) for i in range(len(nodes) - 1)]
+        if nodes[0] != nodes[-1]:
+            # 如果第一个点和最后一个点不一致,加入首尾连接
+            pairs.append((nodes[-1], nodes[0]))  # 结果: [('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A')]
+        formatted_pairs = [f"{a}-{b}" for a, b in pairs]
+        for i in formatted_pairs:
+            # 检查是否已经创建了线段 如果不存在就创建线段
+            if i in self.SegmentLine_dic in self.SegmentLine_dic:
+                continue
+            else:
+                q = i.split('-')
+                self.Segmentline_drop_by_2pointletter(q[0], q[1],floor=floor,color=color,strokeweight=strokeweight,visible=visible)
+        return formatted_pairs
 
     def is_point_in_surface(self, polx, P):
         """
+           polx接受列表型 也接受非齐次坐标矩阵
            判断点 P 是否在 polx 中（包括在边上）
            polx: 多边形的顶点矩阵 [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
            P: 点的坐标 [x, y]
@@ -831,8 +867,7 @@ class Tools2D:
         if all(s > 0 for s in signs) or all(s < 0 for s in signs):
             return 'inside' if not on_edge else 'on_edge'
         return 'on_edge' if on_edge else 'outside'
-    # 返回值：'inside' 内部, 'on_edge' 点在多边形的边上, 'outside' 外部
-    # polx接受列表型 也接受非齐次坐标矩阵
+
 
 
 
@@ -901,20 +936,6 @@ class Tools2D:
         else:
             return 'cant find the letter in : now_a_list'
 
-    def point_to_line_distance(self, point, line_params):
-        """
-        计算点到直线的垂直距离
-        :param point: 点的坐标 (x0, y0)
-        :param line_params: 直线的参数 (a, b, c)，表示 ax + by + c = 0
-        :return: 点到直线的垂直距离（浮点）
-        """
-        x0, y0 = point
-        a, b, c = line_params
-
-        # 计算距离公式
-        distance = abs(a * x0 + b * y0 + c) / math.sqrt(a ** 2 + b ** 2)
-        return distance
-
     def find_same_in_dic(self, d, seevaule=False):
         """
         找到字典中拥有相同值的key
@@ -932,20 +953,6 @@ class Tools2D:
             return duplicates
         duplicates = {value: keys for value, keys in value_to_keys.items() if len(keys) > 1}  # 只保留有重复的值
         return duplicates
-
-    def tran_surfacechain_to_seglinechain(self, chain):
-        """
-        给定一个字符串A-B-C将它切割成[A-B][B-C][C-A](注意是首尾相接的)
-        :param chain: 文本型，一个字符串 例：A-B-C
-        :return: [A-B][B-C][C-A]
-        """
-        nodes = chain.split("-")  # 将链式结构分解为节点列表["A", "B", "C"]
-        # 生成相邻对
-        pairs = [(nodes[i], nodes[i + 1]) for i in range(len(nodes) - 1)]
-        # 加入首尾连接
-        pairs.append((nodes[-1], nodes[0]))  # 结果: [('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'A')]
-        formatted_pairs = [f"{a}-{b}" for a, b in pairs]
-        return formatted_pairs
 
     def get_inter_range(self, a=None, b=None):
         def get_range(interval):
@@ -1024,7 +1031,7 @@ def screen_draw_surface(surfacedic,floor):
         surface_drawed[-1].end_shape()
         py5.shape(surface_drawed[-1])
 
-def screen_drawlines_detail(SegmentLine_dic,floor):
+def screen_draw_SegmentLine(SegmentLine_dic, floor):
     for key, val in SegmentLine_dic.items():
         if val['floor']!=floor:
             continue
@@ -1037,6 +1044,22 @@ def screen_drawlines_detail(SegmentLine_dic,floor):
         local_group=[a for i in val['location'] for a in i]
         py5.line(*local_group)
 
+def screen_draw_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
+    screen_info=screen_get_info()
+    x_range,y_range=screen_info['x_range'],screen_info['y_range']
+    tem=Tools2D()
+    for key,de_dic in linedic.items():
+        tem.line_to_Segmentline(de_dic,x_range=x_range,y_range=y_range)
+    py5.stroke(color)
+    py5.stroke_weight(stroke_weight)
+    line_todraw=[]
+    for key, value in tem.SegmentLine_dic.items():
+        #整理输入参数格式,py5.line需要的格式[[x1 y1 x2 y2] [...]]
+        a_point,b_point=value['location'][0],value['location'][1]
+        the_line=a_point+b_point
+        line_todraw.append(the_line)
+    py5.lines(np.array(line_todraw, dtype=np.float32))
+
 def screen_draw(f=3, Seglinedic=None, surfdic=None):
     """
     f是绘制的图层数
@@ -1047,7 +1070,7 @@ def screen_draw(f=3, Seglinedic=None, surfdic=None):
         if surfdic is not None:
             screen_draw_surface(surfdic, i)
         if Seglinedic is not None:
-            screen_drawlines_detail(Seglinedic, i)
+            screen_draw_SegmentLine(Seglinedic, i)
 
 def screen_print_fps():
     py5.fill(0)  # 设置文本颜色为黑色
@@ -1055,12 +1078,33 @@ def screen_print_fps():
     frame=py5.get_frame_rate()
     py5.text(f"FPS: {frame}", 10, 30)
 
+def screen_get_info():
+    """
+    返回一个关于屏幕详细信息的字典
+    包含:
+    x_range,y_range
+    rect:屏幕矩形(首尾相接)
+    center:屏幕中心
+    """
+    in_dic={}
+    right_top=[py5.width,0]
+    right_down=[py5.width,py5.height]
+    left_top=[0,0]
+    left_down=[0,py5.height]
+    x_range = [0, py5.width]
+    y_range = [0, py5.height]
+    in_dic['x_range']=x_range
+    in_dic['y_range'] = y_range
+    in_dic['rect'] = [left_top,right_top,right_down,left_down,left_top]
+    in_dic['center']=[py5.width/2,py5.height/2]
+    return in_dic
+
 def screen_axis(x=0,y=0):
     """
     从屏幕中心建立坐标系,输入x,y 返回py5的正确坐标
     """
     x=py5.width/2+x
-    y=py5.height+y
+    y=py5.height/2+y
     return [x,y]
 
 def test_random_segline(number=100):

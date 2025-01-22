@@ -8,17 +8,22 @@ def spilt_2pi(n):
     return 2*math.pi/n
 
 def setup():
-    py5.size(400,300)
+    py5.size(500,300)
     py5.frame_rate(144)
+    b = gird.line_solve_general(k=k, x=screen_get_info()['center'][0], y=screen_get_info()['center'][1])['b']
+    gird.line_drop(k=k, b=b)
+    print(gird.get_line_dic())
 
 def draw():
     py5.background(255)
-    screen_draw(3, Seglinedic=test_random_segline(10))
+    #screen_draw(3, Seglinedic=test_random_segline(10))
+    screen_draw_lines(gird.get_line_dic())
     screen_print_fps()
+    py5.point(screen_get_info()['center'][0],screen_get_info()['center'][1])
+    py5.no_loop()
+
 
 gird = Tools2D()
-b= screen_axis(0,0)[1]
-gird.line_drop(k=math.tan(spilt_2pi(5)),b=b)
-print(gird.get_line_dic())
+k = spilt_2pi(5)
 
 py5.run_sketch()
