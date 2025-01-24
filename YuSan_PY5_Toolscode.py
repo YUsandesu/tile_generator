@@ -1,10 +1,14 @@
+from os import remove
+
 import numpy as np
 import py5
 from collections import defaultdict
 import math
 import random
 
-
+from docutils.utils.math.latex2mathml import letters
+from py5 import point
+from sympy.series.gruntz import rewrite
 
 
 class Tools2D:
@@ -12,31 +16,191 @@ class Tools2D:
     有向线段（Directed Segment）：它是一个具体的几何对象，表示从一个起点到一个终点的线段，并且明确指出了方向（从起点到终点）。
     """
     def __init__(self):
-        self.pointdic = {}  # 存储点的字典
-        self.letterlist = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 A-Z
-        self.a_letterlist = [chr(i) for i in range(97, 123)]  # ASCII 范围 97 到 122
-        self.nowletterlist = self.letterlist[:]  # 当前可用的字母列表
-        self.SegmentLine_dic = {}  # 存储线段的字典
-        self.surfacedic = {}  # 存储面的字典
+        self.point_dic = {}  # 存储点的字典
+        self.Segmentline_dic = {}  # 存储线段的字典
+        self.surface_dic = {}  # 存储面的字典
         self.line_dic = {}  # 存储直线的字典
-        self.now_a_list = []  # 当前已使用的小写字母列表
+        self.reverse_point_dic = defaultdict(list) #创建储存点的反字典 便于倒查
+        # 初始化字母表
+        self.alphabetize_Capital = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 A-Z
+        self.alphabetize = [chr(i) for i in range(97, 123)]  # ASCII 范围 97 到 122
+        # 初始化字母队列和索引
+        self.letter_queue = self.alphabetize.copy()  # [a,b,c...z]
+        self.letter_queue_capital = self.alphabetize_Capital.copy()  # [A,B,C,D...Z]
+        self.letter_index = 0  # 字母的后缀序列
+        self.letter_index_capital = 0  # 字母的后缀序列
+    def clear_letter_mem_capital(self, used):
+        """
+        清理内存用
+        输入已经使用的点的字母代号
+        返回一个字典 每个代号对应一个新的名字
+        """
+        back_dic = {}
+        if len(self.letter_queue) < len(used) * 2:
+            return None
+        for i in used:
+            self.back_letter_capital(i)
+        new_letter_index = []
+        for i in used:
+            new_letter = self.extract_letter_capital()
+            new_letter_index.append(self.separate_letter(new_letter)[1])
+            back_dic[i] = new_letter
+        the_max_index = max(new_letter_index)  # 例如最大的是Z100 那么返回100
+        for l, the_letter in enumerate(self.letter_queue_capital):
+            the_ascii, the_index = self.separate_letter(the_letter)
+            if the_index > the_max_index and the_ascii == ord('A'):
+                # 如果是A开头的 例如当前遍历A100 我们的max是99 那么就通过
+                # 当前遍历B99 我们的max是99 那么因为不是A开头的就会跳过 并且99<100
+                del self.letter_queue_capital[l:]
+                self.letter_index_capital = the_index - 1
+                break
+        return back_dic
+    def extract_letter_capital(self):
+        if not self.letter_queue_capital:
+            # 如果字母队列中不够用了
+            self.letter_queue_capital.extend([l + str(self.letter_index_capital + 1) for l in self.alphabetize_Capital])
+            self.letter_index_capital += 1
+        return self.letter_queue_capital.pop(0)  # 删除队列中的第一项并返回
+    def back_letter_capital(self, letter):
+        the_letter_ascii, the_letter_index = self.separate_letter(letter)
+        for list_i, i in enumerate(self.letter_queue_capital):
+            i_ascii, i_index = self.separate_letter(i)
+            if i_index < the_letter_index:
+                # 输入A100 当前查找到A51 列表为[A50,A51,...,A99]
+                continue  # 此时应该跳过,寻找下一个
+            if i_index == the_letter_index:
+                # 输入F10 当前查找到A10 列表为[A10,B10,C10,D10]
+                if i_ascii < the_letter_ascii:
+                    continue
+                if i_ascii > the_letter_ascii:  # 输入F10 当前查找为G10 那么应该插入在G前面
+                    self.letter_queue_capital.insert(list_i, letter)  # 当前索引为i_index 插入会把当前项往后推移
+                    return
+            if i_index > the_letter_index:  # 当前输入A10 列表为[A12,A13,A14...]
+                self.letter_queue_capital.insert(list_i, letter)  # 此时插入在当前项(之前)就可以
+                return
+        # 如果能到达此处 输入A100 当前查找到A51 列表为[A50,A51,...,A99]应该加入到末尾
+        self.letter_queue_capital.append(letter)
+    def apply_letter_capital(self, letter):
+        """
+        申请一个指定字母,并从字母表中删除它,成功返回True
+        """
+        the_ascii, the_index = self.separate_letter(letter)
+        if the_index > self.letter_index_capital:
+            print("开始创建")
+            for i in range(the_index - self.letter_index_capital):
+                # 例如输入 A5 当前序号为3:[B3,C3....Z3]在添加两个循环(5-3) 得到[B3...Z5]
+                self.letter_queue_capital.extend(
+                    [l + str(self.letter_index_capital + 1) for l in self.alphabetize_Capital])
+                self.letter_index_capital += 1
+        if letter in self.letter_queue_capital:
+            self.letter_queue_capital.remove(letter)
+            return True
+        raise ValueError(f"发生错误,队列为{self.letter_queue_capital},输入值为{letter}")
+
+    #获取大写字母代号
+    def clear_letter_mem(self, used):
+        back_dic = {}
+        if len(self.letter_queue) < len(used) * 2:
+            return None
+        for i in used:
+            self.back_letter(i)
+        new_letter_index = []
+        for i in used:
+            new_letter = self.extract_letter()
+            new_letter_index.append(self.separate_letter(new_letter)[1])
+            back_dic[i] = new_letter
+        the_max_index = max(new_letter_index)  # 例如最大的是Z100 那么返回100
+        for l, the_letter in enumerate(self.letter_queue):
+            the_ascii, the_index = self.separate_letter(the_letter)
+            if the_index > the_max_index and the_ascii == ord('a'):
+                # 如果是A开头的 例如当前遍历A100 我们的max是99 那么就通过
+                # 当前遍历B99 我们的max是99 那么因为不是A开头的就会跳过 并且99<100
+                del self.letter_queue[l:]
+                self.letter_index = the_index - 1
+                break
+        return back_dic
+    def extract_letter(self):
+        """
+        返回提取的字母
+        同时从字母表中删除
+        """
+        if not self.letter_queue:
+            # 如果字母队列中不够用了
+            self.letter_queue.extend([l + str(self.letter_index + 1) for l in self.alphabetize])
+            self.letter_index += 1
+        return self.letter_queue.pop(0)  # 删除队列中的第一项并返回
+    def back_letter(self, letter):
+        the_letter_ascii, the_letter_index = self.separate_letter(letter)
+        for list_i, i in enumerate(self.letter_queue):
+            i_ascii, i_index = self.separate_letter(i)
+            if i_index < the_letter_index:
+                # 输入A100 当前查找到A51 列表为[A50,A51,...,A99]
+                continue  # 此时应该跳过,寻找下一个
+            if i_index == the_letter_index:
+                # 输入F10 当前查找到A10 列表为[A10,B10,C10,D10]
+                if i_ascii < the_letter_ascii:
+                    continue
+                if i_ascii > the_letter_ascii:  # 输入F10 当前查找为G10 那么应该插入在G前面
+                    self.letter_queue.insert(list_i, letter)  # 当前索引为i_index 插入会把当前项往后推移
+                    return
+            if i_index > the_letter_index:  # 当前输入A10 列表为[A12,A13,A14...]
+                self.letter_queue.insert(list_i, letter)  # 此时插入在当前项(之前)就可以
+                return
+        # 如果能到达此处 输入A100 当前查找到A51 列表为[A50,A51,...,A99]应该加入到末尾
+        self.letter_queue.append(letter)
+    def separate_letter(self, letter):
+        """
+        将输入拆分为两部分:
+        第一个字符的ASCII值,数字的int值
+        """
+        the_letter_index = letter[1:]  # 从'a100'中切片得到index'100' 如果'a' 返回的是''
+        the_letter_ascii = ord(letter[0])
+        if the_letter_index != '':
+            the_letter_index = int(the_letter_index)
+        else:
+            the_letter_index = 0
+        return the_letter_ascii, the_letter_index
+    # 获取小写字母代号
     def get_point_dic(self):
-        return self.pointdic
+        return self.point_dic
     def get_Segmentline_dic(self):
-        return self.SegmentLine_dic
+        return self.Segmentline_dic
     def get_line_dic(self):
         return self.line_dic
     def get_surface_dic(self):
-        return self.surfacedic
+        return self.surface_dic
 
     # ================点线面存取操作================
     # ////////////《点操作》////////////
+    def point_drop(self, point_xy,specified=None):
+        """
+        如果point_xy格式不对会报错
+        在reverse_pointdic创建一个(x,y)作为key的倒字典便于搜索
+        pecified: 可以输入一个指定字符作为point的名称代号 NONE为自动指定
+        :return: 返回新创建point的字母代号 例如：A
+        """
+        if not self.list_depth(point_xy) == 1 and len(point_xy) == 2:
+            raise ValueError(f"输入的坐标异常,为:{point_xy}")  #输入格式[x,y]
+        if specified is not None:
+            if not isinstance(specified,str):
+                raise ValueError(f"指定点名称错误,为:{specified}")  # 输入格式[x,y]
+            letter = specified
+            if specified in self.point_dic:
+                #当前指定的已经创建,进行覆盖操作(先删除再申请)
+                self.point_remove_by_letter(specified)
+            self.apply_letter_capital(specified)#申请指定点
+        else:
+            letter = self.extract_letter_capital()
+            #未指定点,自动指定一个点
+        self.point_dic[letter] = point_xy #加入字典
+        self.reverse_point_dic[tuple(point_xy)].append(letter) #加入反字典
+        return letter
     def distance_2_points_matrix(self,Apoint,Bpoint):
         """
         矩阵方法求norm 使用的是np矩阵
         """
-        A=self.point_xy_or_letter(Apoint)
-        B=self.point_xy_or_letter(Bpoint)
+        A=self.point_get_info(Apoint)['location']
+        B=self.point_get_info(Bpoint)['location']
         np_A = np.array(A)
         np_B = np.array(B)
         return np.linalg.norm(np_A - np_B)
@@ -50,75 +214,44 @@ class Tools2D:
         返回:
         两点之间的距离
         """
-        x1, y1 = self.point_xy_or_letter(point1)
-        x2, y2 = self.point_xy_or_letter(point2)
+        x1, y1 = self.point_get_info(point1)['location']
+        x2, y2 = self.point_get_info(point2)['location']
         return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
-    def point_remove_group(self, p_group):
-        "自动识别 长度两位当作xy坐标,长度一位当作字母"
-        if self.list_depth(p_group) == 1:
-            for i in p_group:
-                self.point_remove_by_letter(i)
-            return
-
-        if self.list_depth(p_group) == 2:
-            for i in p_group:
-                self.point_remove_by_xy(i)
     def point_remove_by_letter(self, aletter):
-        if aletter not in self.pointdic:
-            return "cant find point"
-        del self.pointdic[aletter]
-
-        # 初始化变量
-        n = -1
-        num = len(self.nowletterlist)  # 默认插入到最后
-        number_aletter = int(aletter[1:] or 0) if len(aletter) > 1 else 0  # alletter 的数字部分，默认为 0
-        # 遍历列表寻找插入点
-        for i in self.nowletterlist:
-            n += 1
-            if i == None:
-                break
-
-            # 提取数字部分，若无数字部分则默认为 0
-            number_i = int(i[1:] or 0)  # 当前元素的数字部分，默认为 0
-
-            # 优先比较数字部分
-            if number_i < number_aletter:  # 当前数字小于 alletter 的数字，继续循环
-                continue
-            elif number_i == number_aletter:  # 数字相同，比较字母部分
-                if ord(i[0]) < ord(aletter[0]):  # 当前字母小于 alletter 的字母，继续循环
-                    continue
-            # 如果当前数字大于 alletter 的数字，或者数字相同但字母大于 alletter 的字母，找到插入点
-            num = n
-            break
-
-        # 修正 num 的值，确保插入点在列表范围内
-        if len(self.nowletterlist) <= num:
-            num = len(self.nowletterlist)  # 插入到末尾
-        elif num < 0:
-            num = 0  # 插入到开头
-
-        # 插入元素
-        self.nowletterlist.insert(num, aletter)
-    def point_remove_by_xy(self, listxy):
         """
-        从字典pointdic中遍历来查找并删除
-        如果找不到会有返回值"cant find"
+        删除指定字母对应的点，并将其重新插入到 nowletterlist 中。
+        失败返回 False。
         """
-        target_value = listxy
-        # 找到所有键
-        keys = [k for k, v in self.pointdic.items() if v == target_value]
-        if keys:
-            self.point_remove_by_letter(keys[-1])
+        self.back_letter_capital(aletter)
+        value=self.point_dic[aletter]
+        del self.point_dic[aletter]
+        if len(self.reverse_point_dic[tuple(value)])>1:
+            #如果列表中内容超过一项,那么有多个点名称同时存在
+            re_write=self.reverse_point_dic[tuple(value)]
+            re_write.remove(aletter) #从其中删除指定代号
+            self.reverse_point_dic[tuple(value)]=re_write #重新覆写回去
+        elif len(self.reverse_point_dic[tuple(value)])==1:
+            del self.reverse_point_dic[tuple(value)]
         else:
-            return "cant find"
-    def point_drop_group(self, apointgroup):
+            raise ValueError("删除reverse_pointdic时,发送未知错误")
+    def point_remove_by_xy(self, point_xy):
         """
-        循环调用 droppoint_in_note()
-        :param apointgroup: [a,b][c,d][e,f]格式不会会报错
+        通过调用point_get_info调用point_remove_by_letter
+        失败返回False
+        """
+        info=self.point_get_info(point_xy)
+        if info['letter'] is not None:
+            return self.point_remove_by_letter(info['letter'])
+        else:
+            return False
+    def point_drop_group(self, point_xy_group):
+        """
+        循环调用 point_drop
+        :param point_xy_group: [a,b][c,d][e,f]格式不会会报错
         :return: 返回一个代号列表[A,B,C,D]
         """
         back = []
-        for i in apointgroup:
+        for i in point_xy_group:
             if not isinstance(i, list):
                 if not isinstance(i, tuple):
                     raise ValueError("data is not list or tuple")
@@ -127,44 +260,74 @@ class Tools2D:
             else:
                 raise ValueError("data is not:([x,y],(x,y),(x,y))")
         return back
-    def point_drop(self, apoint):
-        """
-        如果格式不会会报错
-        :return: 返回新创建字母的代号 例如：A
-        """
-        if len(self.nowletterlist) == 0:
-            if len(self.letterlist[-1]) == 1:
-                moreletterlist = [f"{chr(i)}1" for i in range(65, 91)]
-                self.letterlist = self.letterlist + moreletterlist
-                self.nowletterlist = moreletterlist
-            else:
-                morenum = str(int(self.letterlist[-1][1:]) + 1)
-                moreletterlist = [chr(i) + morenum for i in range(65, 91)]
-                self.letterlist = self.letterlist + moreletterlist
-                self.nowletterlist = moreletterlist
-        if self.list_depth(apoint) == 1 and len(apoint) == 2:
-            back = self.nowletterlist[0]
-            self.pointdic[self.nowletterlist[0]] = apoint
-            del self.nowletterlist[0]
-            return back
-        else:
-            raise ValueError("Data must be a list[x,y]or(x,y)")  # 抛出 ValueError 异常
-    def point_xy_or_letter(self,point_xy_or_letter):
+    def point_get_info(self, point_xy_or_letter):
         """
         无论输入的是 (x,y) or 字符代号
-        统一返回[x,y]
+        统一返回一个字典 包括'type':返回'letter'或者'point_xy'
+        'letter':字母代号 如果未找到此项会返回None
+        'location':坐标值[x,y]
         如果读取失败(参数输入错误)返回False
         """
-        if isinstance(point_xy_or_letter, str):
-            detail_point = self.pointdic[point_xy_or_letter]
+        back_dict = {}
+        if isinstance(point_xy_or_letter, str) and point_xy_or_letter:
+            if point_xy_or_letter not in self.point_dic.keys():
+                #输入的字母不在字典中
+                return False
+            detail_point = self.point_dic[point_xy_or_letter]
             point_x = detail_point[0]
             point_y = detail_point[1]
+            letter = point_xy_or_letter
+            input_type = 'letter'
         elif isinstance(point_xy_or_letter, (list, tuple, np.ndarray)) and len(point_xy_or_letter) == 2:
             point_x = point_xy_or_letter[0]
             point_y = point_xy_or_letter[1]
+            input_type = 'point_xy'
+            if tuple(point_xy_or_letter) in self.reverse_point_dic:
+                letter = self.reverse_point_dic[tuple(point_xy_or_letter)]
+            else:
+                letter = None
         else:
-            return False
-        return [point_x,point_y]
+            raise ValueError(f"未知错误,输入的点是{point_xy_or_letter}")
+        back_dict['type']=input_type
+        back_dict['letter']=letter
+        back_dict['location']=[point_x,point_y]
+        return back_dict
+    def point_shift_vector(self, point, vector_Direct, distance):
+            """
+            point接受点的列表,也接受一个单独的点
+            vector仅表示方向
+            distance表示移动的距离
+            """
+            if vector_Direct[0] == 0 and vector_Direct[1] == 0:
+                return point
+
+            def shift_point(point, way):
+                """
+                point:点坐标
+                way:路径,一个列表[x,y],第一个是x坐标,第二个是y坐标
+                """
+                p_x, p_y = point[0], point[1]
+                s_x, s_y = way[0], way[1]
+                back_x = p_x + s_x
+                back_y = p_y + s_y
+                return [back_x, back_y]
+
+            depth = self.list_depth(point)
+            # 求倍数
+            multiple = distance / math.sqrt(vector_Direct[0] ** 2 + vector_Direct[1] ** 2)
+            way = [vector_Direct[0] * multiple, vector_Direct[1] * multiple]
+            if depth == 1 and len(point) == 2:
+                # 输入的是一个点
+                back = shift_point(point, way)
+                return back
+            elif depth == 2:
+                # 输入的是一组点
+                point_group = []
+                for p in point:
+                    point_group.append(shift_point(p, way))
+                return point_group
+            else:
+                raise ValueError(f"错误,可能是输入格式不对,point:{point}")
 
     # ////////////《线操作》////////////
     def Segmentline_drop_by_2pointletter(self, Aletter, Bletter, floor=0, color=py5.color(0, 0, 0, 255), strokeweight=3,
@@ -175,13 +338,13 @@ class Tools2D:
         :param visible: 是否可视，在绘制辅助线时候可以设置为=False
         """
         inf = {}
-        inf["location"] = [list(self.pointdic[Aletter]), list(self.pointdic[Bletter])]
+        inf["location"] = [list(self.point_dic[Aletter]), list(self.point_dic[Bletter])]
 
         inf["floor"] = floor
         inf["color"] = color
         inf["stroke_weight"] = strokeweight
         inf["visible"] = visible
-        self.SegmentLine_dic[Aletter + "-" + Bletter] = inf
+        self.Segmentline_dic[Aletter + "-" + Bletter] = inf
     def Segmentline_drop_by_2pointxy(self, Apoint, Bpoint, floor=0, color=py5.color(0, 0, 0, 255), strokeweight=3,
                                      visible=True):
         """
@@ -196,14 +359,14 @@ class Tools2D:
         return Aletter + "-" + Bletter
 
     def Segmentline_remove_by_chain(self, chain):
-        del self.SegmentLine_dic[chain]
+        del self.Segmentline_dic[chain]
 
     def line_drop(self, k, b, a=1, temp=False):
         """
         保存一个函数：ay=kx+b
-        如果字典detaildic中有'a'键 储存的是x=b 是一个垂直线
-        如果字典detaildic中有'k'键 是y=b 是一个水平线
-        :param a: 如果a不是1或0 认定输入的是ay+bx+k=0
+        如果字典detaildic中有'a'键: a肯定是0 k肯定是-1(自动化简) 储存的是x=b 是一个垂直线
+        如果字典中 k=0 是y=b 是一个水平线
+        :param a: 如果a不是1或0 会报错/#/内容:认定输入的是ay+bx+k=0
         :param temp: 如果为True 那么不创建到字典中 仅返回一个kba字典
         :return: temp=False 返回一个字母代号 例如：a temp=True 不创建到字典中 仅返回一个kba字典
         """
@@ -232,32 +395,36 @@ class Tools2D:
             detaildic['k'] = k
             detaildic['b'] = b
         if a != 0 and a != 1 and a is not None:
-            # ay+bx+c=0
-            k = b / a
-            b = k / a
-            if b > 0:
-                strline = f"y={k}x+{b}"
-            elif b < 0:
-                strline = f"y={k}x-{b}"
-            elif b == 0:
-                strline = f"y={k}x"
-
-            detaildic['str'] = strline
-            detaildic['k'] = k
-            detaildic['b'] = b
-
+            raise ValueError(f"输入不符合要求,a只能是0或1,当前输入:{a}")
+            # # ay+bx+c=0
+            # k = b / a
+            # b = k / a
+            # if b > 0:
+            #     strline = f"y={k}x+{b}"
+            # elif b < 0:
+            #     strline = f"y={k}x-{b}"
+            # elif b == 0:
+            #     strline = f"y={k}x"
+            #
+            # detaildic['str'] = strline
+            # detaildic['k'] = k
+            # detaildic['b'] = b
         if temp == True:
             return detaildic
-        newletter = self.ask_a_new_letter()
+        newletter = self.extract_letter()
         self.line_dic[newletter] = detaildic
         return newletter
 
     def line_remove(self, letter):
+        """
+        删除线
+        失败返回False
+        """
         if letter in self.line_dic:
             del self.line_dic[letter]
-            self.del_a_letter(letter)
+            self.back_letter(letter)
         else:
-            return "can not find in dic"
+            return False
 
     def line_to_Segmentline(self, line, x_range=None, y_range=None, floor=0, color=py5.color(0, 0, 0, 255), strokeweight=3,
                             visible=True):
@@ -466,14 +633,14 @@ class Tools2D:
         """
         # 判断输入格式
         if isinstance(A_seg_Chain_or_2pointxy, str):
-            local_A = self.SegmentLine_dic[A_seg_Chain_or_2pointxy]['location']
+            local_A = self.Segmentline_dic[A_seg_Chain_or_2pointxy]['location']
             Ax1, Ay1 = local_A[0]
             Ax2, Ay2 = local_A[1]
         else:
             Ax1, Ay1 = A_seg_Chain_or_2pointxy[0]
             Ax2, Ay2 = A_seg_Chain_or_2pointxy[1]
         if isinstance(B_seg_Chain_or_2pointxy, str):
-            local_B = self.SegmentLine_dic[B_seg_Chain_or_2pointxy]['location']
+            local_B = self.Segmentline_dic[B_seg_Chain_or_2pointxy]['location']
             Bx1, By1 = local_B[0]
             Bx2, By2 = local_B[1]
         else:
@@ -546,8 +713,8 @@ class Tools2D:
         经典方法 查找两条线段交点，无交点返回None
         """
         Aletter, Bletter = segline_chain.split('-')
-        A = self.pointdic[Aletter]
-        B = self.pointdic[Bletter]
+        A = self.point_dic[Aletter]
+        B = self.point_dic[Bletter]
         Ax, Ay = A
         Bx, By = B
         seg_rangeX, seg_rangeY = [min([Ax, Bx]), max([Ax, Bx])], [min([Ay, By]), max([Ay, By])]
@@ -646,7 +813,7 @@ class Tools2D:
         :return: 返回一个列表，包含两个范围[[x_min, x_max], [y_min, y_max]]
         """
         if isinstance(Chain_or_2pointxy, str):
-            A_pointlist = self.SegmentLine_dic[Chain_or_2pointxy]['location']
+            A_pointlist = self.Segmentline_dic[Chain_or_2pointxy]['location']
             x1, y1 = A_pointlist[0]
             x2, y2 = A_pointlist[1]
         else:
@@ -666,8 +833,8 @@ class Tools2D:
         """
         if isinstance(chain_or_2pointxy, str):
             Aletter, Bletter = chain_or_2pointxy.split('-')
-            x1, x2 = self.pointdic[Aletter][0], self.pointdic[Bletter][0]
-            y1, y2 = self.pointdic[Aletter][1], self.pointdic[Bletter][1]
+            x1, x2 = self.point_dic[Aletter][0], self.point_dic[Bletter][0]
+            y1, y2 = self.point_dic[Aletter][1], self.point_dic[Bletter][1]
         else:
             x1, y1 = chain_or_2pointxy[0]
             x2, y2 = chain_or_2pointxy[1]
@@ -709,7 +876,7 @@ class Tools2D:
 
     def distance_point_to_line(self,point,line):
         #linedic例子:{'a': {'str': 'y=3x+100', 'k': 3, 'b': 100}}
-        point = self.point_xy_or_letter(point)
+        point = self.point_get_info(point)['location'] #只获取第一项,也就是位置信息
         if point is False:
             raise ValueError(f'point输入的参数{point}错误')
         point_x = point[0]
@@ -741,8 +908,6 @@ class Tools2D:
         line:通用型,chain和2pointxy皆可
         """
         the_line = self.line_chain_or_dic(line)
-
-
     def surface_spilt_by_line(self, surface_chain, line_params):
         self.surface_chain_to_Segline_group(surface_chain)
 
@@ -755,7 +920,7 @@ class Tools2D:
         surf_pointgroup = []
         alist_of_point = chain_of_point.split('-')
         for aletter in alist_of_point:
-            point_xy = self.pointdic.get(aletter, 0)
+            point_xy = self.point_dic.get(aletter, 0)
             if point_xy != 0:
                 surf_pointgroup.append(point_xy)
             else:
@@ -773,7 +938,7 @@ class Tools2D:
         nowdic['fill'] = fill
         nowdic['stroke'] = stroke
         nowdic['stroke_color'] = stroke_color
-        self.surfacedic[chain_of_point] = nowdic
+        self.surface_dic[chain_of_point] = nowdic
         return surf_pointgroup
 
     def surface_drop_by_pointlist(self, apointlist, floor=0, color=py5.color(200, 200, 20, 255), fill=False, stroke=None,
@@ -803,7 +968,7 @@ class Tools2D:
         formatted_pairs = [f"{a}-{b}" for a, b in pairs]
         for i in formatted_pairs:
             # 检查是否已经创建了线段 如果不存在就创建线段
-            if i in self.SegmentLine_dic in self.SegmentLine_dic:
+            if i in self.Segmentline_dic in self.Segmentline_dic:
                 continue
             else:
                 q = i.split('-')
@@ -873,86 +1038,14 @@ class Tools2D:
 
     # ////////////《常用操作》////////////
     def list_depth(self,lst):
-        if not isinstance(lst, list):
-            if not isinstance(lst, tuple):
-                # 如果当前不是列表，层数为 0
-                return 0
+        if not isinstance(lst, (list,tuple)):
+            # 如果当前不是列表，层数为 0
+            return 0
         if not lst:
             # 如果列表是空的，层数为 1（只有一层）
             return 1
         # 递归判断每个元素的嵌套深度，并取最大值
         return 1 + max(self.list_depth(item) for item in lst)
-
-    def ask_a_new_letter(self):
-        """
-        从字母列表a_letterlist中请求获得一个小写字母 并添加到当前已用列表now_a_list中
-        如果不够用会在a_letterlist中动态创建新的字母
-        :return: 一个小写字母 文本型
-        """
-        if len(self.a_letterlist) == 0:
-            if len(self.now_a_list[-1]) == 1:
-                # 此时小写字母后面还没有序号
-                self.a_letterlist = [chr(i) + "1" for i in range(97, 123)]
-            if len(self.now_a_list[-1]) > 1:
-                # 此时存在序号，需要判断序号大小
-                xuhao = int(self.now_a_list[-1][1:]) + 1
-                self.a_letterlist = [chr(i) + str(xuhao) for i in range(97, 123)]
-        thekey = self.a_letterlist.pop(0)
-        self.now_a_list.append(thekey)
-        return thekey
-
-    def del_a_letter(self, aletter):
-        """
-        从当前已用集合中删除一个小写字母，放回字母集中
-        :return:如果找不到 会返回：cant find the letter in : now_a_list
-        """
-        if aletter in self.now_a_list:
-            Sure = True
-            # 计算我的num
-            if len(aletter) == 1:
-                num = ord(aletter) - 97 + 1
-            if len(aletter) > 1:
-                num = (ord(aletter[0]) - 97 + 1) + int(aletter[1:]) * 26
-            surenum = 0
-            thisnum = 0
-            while Sure:
-                if surenum >= len(self.a_letterlist):
-                    surenum = -1
-                    # print('超出范围 加入到最后')
-                    break
-                if len(self.a_letterlist[surenum]) == 1:
-                    # print('没有序号，直接比较')
-                    thisnum = ord(self.a_letterlist[surenum]) - 97 + 1
-                    if thisnum > num:
-                        break
-                if len(self.a_letterlist[surenum]) > 1:
-                    # 存在序号
-                    thisnum = (ord(self.a_letterlist[surenum][0]) - 97 + 1) + int(self.a_letterlist[surenum][1:]) * 26
-                    if thisnum > num:
-                        break
-                surenum = surenum + 1
-            self.a_letterlist.insert(surenum, aletter)
-            self.now_a_list.remove(aletter)
-        else:
-            return 'cant find the letter in : now_a_list'
-
-    def find_same_in_dic(self, d, seevaule=False):
-        """
-        找到字典中拥有相同值的key
-        :param d: 一个字典形
-        :param seevaule: 是否返回键值
-        :return:
-        seevaule=False 列表[[A,B,C],[D,E,F]] seevaule=Ture 字典{"[A,B,C]":[1,3],"[D,E]":[2,4]}
-        """
-        value_to_keys = defaultdict(list)
-        for key, value in d.items():
-            value_to_keys[tuple(value)].append(key)  # 将键分组到相同值的列表中
-        # 创建一个字典value_to_keys，值作为键，键作为值（存储列表）
-        if seevaule == False:
-            duplicates = [keys for value, keys in value_to_keys.items() if len(keys) > 1]
-            return duplicates
-        duplicates = {value: keys for value, keys in value_to_keys.items() if len(keys) > 1}  # 只保留有重复的值
-        return duplicates
 
     def get_inter_range(self, a=None, b=None):
         def get_range(interval):
@@ -989,8 +1082,8 @@ class Tools2D:
         """
         给定平面字符串表示 返回一个齐次坐标矩阵
         """
-        print(self.surfacedic[Chain]['local'])
-        vertices = np.array(self.surfacedic[Chain]['local'])
+        print(self.surface_dic[Chain]['local'])
+        vertices = np.array(self.surface_dic[Chain]['local'])
         homogeneous_vertices = np.hstack([vertices, np.ones((vertices.shape[0], 1))])
         return homogeneous_vertices
 
@@ -1053,7 +1146,7 @@ def screen_draw_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
     py5.stroke(color)
     py5.stroke_weight(stroke_weight)
     line_todraw=[]
-    for key, value in tem.SegmentLine_dic.items():
+    for key, value in tem.Segmentline_dic.items():
         #整理输入参数格式,py5.line需要的格式[[x1 y1 x2 y2] [...]]
         a_point,b_point=value['location'][0],value['location'][1]
         the_line=a_point+b_point
@@ -1107,9 +1200,26 @@ def screen_axis(x=0,y=0):
     y=py5.height/2+y
     return [x,y]
 
+def test_random_point(creat_num=1500,del_num=1000,num=10):
+    """
+    随机创建一些点,返回point_dic
+    creat_num:随机创建点数量
+    del_num:随机删除点数量
+    num:循环以上过程次数
+    """
+    p=Tools2D()
+    for n in range(num):
+        for i in range(creat_num):
+            p.point_drop([random.randint(0, 10), random.randint(0, 10)])
+        for i in range(del_num):
+            p_letter = list(p.point_dic.keys())
+            p.point_remove_by_letter(random.choice(p_letter))
+    return p.point_dic
+
 def test_random_segline(number=100):
     """
-    随机生成N条线段
+    随机生成number条线段
+    返回线段字典Segmentline_dic
     """
     lines = Tools2D()
     for i in range(number):
@@ -1130,4 +1240,3 @@ def test_line_in_extreme(num=500):
             continue
         lines.line_drop(k=k, b=random.randint(-100, 100), a=a)
     return lines.get_line_dic()
-

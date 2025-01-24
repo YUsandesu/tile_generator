@@ -16,14 +16,17 @@ def setup():
 
 def draw():
     py5.background(255)
-    #screen_draw(3, Seglinedic=test_random_segline(10))
+    # screen_draw(3, Seglinedic=test_random_segline(10))
     screen_draw_lines(gird.get_line_dic())
     screen_print_fps()
     py5.point(screen_get_info()['center'][0],screen_get_info()['center'][1])
+
     py5.no_loop()
 
 
 gird = Tools2D()
 k = spilt_2pi(5)
+
+# test_random_point(100,90,num=150)
 
 py5.run_sketch()
