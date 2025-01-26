@@ -447,9 +447,8 @@ class Tools2D:
                 **inputvalue
             )
             return back
-
         if x_range is None and y_range is None:
-            #如果没有提供取值范围,就使用屏幕范围
+            print('如果没有提供取值范围,就使用屏幕范围')
             if self.screeninfo is None:
                 raise ValueError("没有提供取值范围")
             x_range = self.screeninfo['xrange']
@@ -459,7 +458,6 @@ class Tools2D:
             y_to_x_range = [y_to_x_min, y_to_x_max]
             new_range_x = self.get_inter_range(x_range, y_to_x_range)
             return xrange_to_Segline(new_range_x)
-
         if x_range is not None and y_range is None:
             #如果提供了x范围
             xmin = min(x_range[0], x_range[1])

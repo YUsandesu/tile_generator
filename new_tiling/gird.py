@@ -46,12 +46,14 @@ print(f'耗时{round(elapsed_time * 1000,5)}毫秒')
 def setup():
     py5.size(400,300)
     py5.frame_rate(144)
-    slider()
+    load()
+    slider('sides',[50,150],value=5,range=[3,15])
+    slider('distance',location=[50,180],value=15,range=[0,50])
 
 def draw():
     back = slider_value()
     if back is not None:
-        create_gird(8,back)
+        create_gird(sides=back['sides'],distance=back['distance'])
     py5.background(255)
     screen_draw_vector(vector,screen_axis(-50,-50))
     screen_draw_lines(gird.get_line_dic())
@@ -62,7 +64,6 @@ def fps():
     now_fps = py5.get_frame_rate()  # 获取当前帧率
     py5.fill(0)  # 设置文本颜色为黑色
     py5.text(f"FPS: {now_fps:.2f}", 10, 30)  # 在屏幕上显示帧率
-
 
 py5.run_sketch()
 
