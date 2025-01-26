@@ -1,6 +1,6 @@
 # Sample fixed data input
 base_data = {
-    'symmetry': 3,
+    'symmetry': 5,
     'radius': 75,
     'pattern': 0.0,
     'pan': 0.0,
