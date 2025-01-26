@@ -1,4 +1,5 @@
 import py5_tools
+
 py5_tools.add_jars('../jars')
 import time
 from YuSan_PY5_Toolscode import *
@@ -20,14 +21,14 @@ def create_gird(sides, distance):
     o_gird = Tools2D()
     for i in vector_pen:
         # 把vector_pen换成直线
-        o_gird.vector_to_line(i, [200, 150])
+        o_gird.vector_to_line_Reduce_Errors(i, [200, 150])
     gird_0 = o_gird.get_line_dic()  #
 
     # 平移gird_0
     gird = Tools2D()
     for t, (letter, line_detail) in enumerate(gird_0.items()):
         direction_vector = vector[t]  # 平移方向为vector
-        for i in range(0, 50):
+        for i in range(0, 5):
             # 用vector_change_norm拉伸向量长度
             gird.line_shift(line_detail,
                             gird.vector_change_norm(direction_vector, distance[t] + 100 * i),
