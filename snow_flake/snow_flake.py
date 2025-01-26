@@ -8,7 +8,6 @@ class LSystem:
         self.rule = "F+F-F"
         self.startLength = 90.0
         self.theta = radians(120.0)
-        # self.reset()
 
     def reset(self):
         self.production = self.axiom
@@ -51,8 +50,14 @@ class PenroseSnowflakeLSystem(LSystem):
     def __init__(self):
         super().__init__()
         self.axiom = "F3-F3-F3-F3-F"
+        # self.axiom = "F3-F"
+        # self.axiom = "F3-F3-F45-F++F"
+        # self.axiom = "F3-F3-F45-F++F3-F3-F3-F3-F45-F++F3-F"
+        # self.axiom = "F3-F3-F45-F++F3-F3-F3-F3-F45-F++F3-F3-F3-F3-F3-F45-F++F3-F"
+        # self.axiom = "F3-F3-F45-F++F3-F"
+        # self.ruleF = "F"
         self.ruleF = "F3-F3-F45-F++F3-F"
-        self.startLength = 450.0
+        self.startLength = 100.0
         self.theta = radians(18.0)
         self.reset()
 
@@ -100,16 +105,14 @@ class PenroseSnowflakeLSystem(LSystem):
     #     return newProduction
 
 
-# Global instance of PenroseSnowflakeLSystem
 ps = None
-
 def setup():
     global ps
     py5.size(640, 360)
     py5.stroke(255)
     py5.no_fill()
     ps = PenroseSnowflakeLSystem()
-    ps.simulate(4)
+    ps.simulate(1)
 
 def draw():
     py5.background(0)
