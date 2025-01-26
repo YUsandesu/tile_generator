@@ -223,7 +223,11 @@ class Tools2D:
         np_vector = np.array(vector)
         rotated_vector = np.dot(rotation_matrix, np_vector)# 旋转向量
         return list(rotated_vector)
-    def vector_norm(self, vector, norm=1):
+    def vector_get_norm(self,vector):
+        #math.hypot 函数可以正确处理负数
+        back = math.hypot(vector[0],vector[1])
+        return
+    def vector_change_norm(self, vector, norm=1):
         """
         调整向量的模长
         返回一个新的vector[x,y]
@@ -1293,8 +1297,8 @@ def screen_draw_vector(vector_or_vector_list,start_point):
         """
         arrow_vector_A = tem.vector_rotate(vector,180-30)
         arrow_vector_B = tem.vector_rotate(vector,-(180-30))
-        arrow_vector_A = tem.vector_norm(arrow_vector_A,norm=10)
-        arrow_vector_B = tem.vector_norm(arrow_vector_B,norm=10)
+        arrow_vector_A = tem.vector_change_norm(arrow_vector_A, norm=10)
+        arrow_vector_B = tem.vector_change_norm(arrow_vector_B, norm=10)
         arrow_end_A = tem.point_shift(arrow_vector_A,vector=vector)
         arrow_end_B = tem.point_shift(arrow_vector_B, vector=vector)
         return arrow_end_A,arrow_end_B
