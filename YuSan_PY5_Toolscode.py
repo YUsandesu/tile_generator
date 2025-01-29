@@ -169,7 +169,7 @@ class Tools2D:
         """
         A_x, A_y = self.point_get_info(Apoint)['location']
         B_x, B_y = self.point_get_info(Bpoint)['location']
-        vector = [B_x - A_x, B_y - A_y]
+        vector = [self.reduce_errors(B_x - A_x), self.reduce_errors(B_y - A_y)]
         return vector
     def point_shift(self, point, vector):
         """
@@ -236,52 +236,31 @@ class Tools2D:
         multiple = norm / math.hypot(v_x, v_y)
         back = [v_x * multiple, v_y * multiple]
         return back
-    def vector_to_line(self,vector,passing_point):
-        if vector[0]==0 and vector[1]==0:
+    def reduce_errors(self,num,max=1e10,min=1e-10):
+        """
+        如果接近无穷大返回None，接近无穷下返回0
+        """
+        if abs(num)>max:
             return None
-        if vector[0]==0:
+        elif abs(num)<min:
+            return 0
+        return num
+    def  vector_to_line(self,vector,passing_point):
+        if self.reduce_errors(vector[0])==0 and self.reduce_errors(vector[1])==0:
+            return None
+        if self.reduce_errors(vector[0])==0:
             #x=b ; k=-1 a=0
             return self.line_drop(a=0,k=-1,b=passing_point[0])
-        if vector[1]==0:
+        if self.reduce_errors(vector[1])==0:
             #y=b ;a=1 k=0
             return self.line_drop(a=1,k=0,b=passing_point[1])
-        k=vector[1]/vector[0]
-        b=self.line_solve_general(a=1,x=passing_point[0],y=passing_point[1],k=k)['b']
-        return self.line_drop(a=1,k=k,b=b)
-    def vector_to_line_Reduce_Errors(self, vector, passing_point, tolerance=1e-10, max_slope=1e10):
-        """
-        将向量转换为直线方程。
-        :param vector: 方向向量 [vx, vy]。
-        :param passing_point: 直线经过的点 [x0, y0]。
-        :param tolerance: 判断是否为零的阈值。
-        :param max_slope: 斜率的最大值，超过此值则视为垂直线。
-        :return: 直线方程的参数。
-        """
-        # 检查向量是否为零向量
-        if abs(vector[0]) < tolerance and abs(vector[1]) < tolerance:
-            return None
-
-        # 处理垂直线（x = b）
-        if abs(vector[0]) < tolerance or abs(vector[1]) > max_slope * abs(vector[0]):
-            return self.line_drop(a=0, k=-1, b=passing_point[0])
-
-        # 处理水平线（y = b）
-        if abs(vector[1]) < tolerance:
-            return self.line_drop(a=1, k=0, b=passing_point[1])
-
-        # 计算斜率 k
-        k = vector[1] / vector[0]
-
-        # 如果斜率过大，视为垂直线
-        if abs(k) > max_slope:
-            return self.line_drop(a=0, k=-1, b=passing_point[0])
-
-        # 计算截距 b
-        line_params = self.line_solve_general(a=1, x=passing_point[0], y=passing_point[1], k=k)
-        b = line_params.get('b', 0)  # 如果 line_solve_general 返回字典中包含 'b'
-
-        # 返回直线方程
-        return self.line_drop(a=1, k=k, b=b)
+        k=self.reduce_errors(vector[1]/vector[0])
+        if k is None:
+            a=0
+        else:
+            a=1
+        b=self.line_solve_general(a=a,x=passing_point[0],y=passing_point[1],k=k)['b']
+        return self.line_drop(a=a,k=k,b=b)
     def line_shift(self,line_letter_or_dic, vector,rewrite=True,drop=True):
         """
             对直线进行平移操作。
@@ -963,14 +942,11 @@ class Tools2D:
 
     def distance_point_to_line(self,point,line):
         #linedic例子:{'a': {'str': 'y=3x+100', 'k': 3, 'b': 100}}
-        point = self.point_get_info(point)['location'] #只获取第一项,也就是位置信息
-        if point is False:
-            raise ValueError(f'point输入的参数{point}错误')
         point_x = point[0]
         point_y = point[1]
-        detail_line_dic = line_chain_or_dic(line)
-        if detail_line_dic is False:
-            raise ValueError(f'line输入的参数{line}错误')
+        if isinstance(line,dict): detail_line_dic = line
+        elif isinstance(line,str): detail_line_dic = self.line_dic[line]
+        else: raise ValueError(f"输入的line不合符规范，为：{line}")
 
         if detail_line_dic['k']==0:
             #输入的line是一条水平线
@@ -1410,6 +1386,18 @@ def screen_draw_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
         line_todraw.append(the_line)
     py5.lines(np.array(line_todraw, dtype=np.float32))
 
+def screen_draw_points( pointdic,size=5,color=py5.color(255,0,0,255),fill=py5.color(0,0,0,255) ):
+    """
+    fill可以输入None 得到空心点
+    """
+    for key,value in pointdic.items():
+        x,y=value
+        py5.stroke_weight(2)
+        py5.stroke(color)
+        if fill is None: py5.no_fill()
+        else:py5.fill(fill)
+        py5.circle(x , y , size)
+
 def screen_draw(f=3, Seglinedic=None, surfdic=None):
     """
     f是绘制的图层数
@@ -1465,9 +1453,10 @@ def random_point(creat_num=1500, del_num=1000, num=10):
     num:循环以上过程次数
     """
     p=Tools2D()
+    the_screen=screen_get_info()
     for n in range(num):
         for i in range(creat_num):
-            p.point_drop([random.randint(0, 10), random.randint(0, 10)])
+            p.point_drop([random.randint(*screen_get_info()['x_range']), random.randint(*screen_get_info()['y_range'])])
         for i in range(del_num):
             p_letter = list(p.point_dic.keys())
             p.point_remove_by_letter(random.choice(p_letter))
