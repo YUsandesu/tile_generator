@@ -425,6 +425,7 @@ class Tools2D:
                 strline = f"y={k}x-{b}"
             elif b == 0:
                 strline = f"y={k}x"
+            else: raise ValueError(f"b值出现错误,b为:{b}")
             detaildic['str'] = strline
             detaildic['k'] = k
             detaildic['b'] = b
@@ -973,11 +974,11 @@ class Tools2D:
 
         if detail_line_dic['k']==0:
             #输入的line是一条水平线
-            return abs(detail_line_dic[b]-point_y)
+            return abs(detail_line_dic['b']-point_y)
         if 'a' in detail_line_dic:
             #输入的是一条垂直线
             #存在a键的时候 a必定为0 且k必定为-1(line_drop中就是这么规定的)
-            return abs(detail_line_dic[b] - point_x)
+            return abs(detail_line_dic['b'] - point_x)
         k_orth = -1 / detail_line_dic['k']
         # 斜率是-1/k的时候垂直
         result=self.line_solve_general(a=1, k=k_orth, x=point_x, y=point_y)
@@ -1351,6 +1352,7 @@ def screen_draw_surface(surfacedic,floor):
         surface_drawed[-1].vertices(vertices)
         surface_drawed[-1].end_shape()
         py5.shape(surface_drawed[-1])
+
 def screen_draw_SegmentLine(SegmentLine_dic, floor):
     for key, val in SegmentLine_dic.items():
         if val['floor']!=floor:
@@ -1407,7 +1409,6 @@ def screen_draw_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
         the_line=a_point+b_point
         line_todraw.append(the_line)
     py5.lines(np.array(line_todraw, dtype=np.float32))
-
 
 def screen_draw(f=3, Seglinedic=None, surfdic=None):
     """
