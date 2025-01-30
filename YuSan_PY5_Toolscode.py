@@ -245,7 +245,11 @@ class Tools2D:
         elif abs(num)<min:
             return 0
         return num
-    def  vector_to_line(self,vector,passing_point):
+    def  vector_to_line(self,vector,passing_point=(0,0),temp=False):
+        """
+        passing_point,直线经过的点，默认(0，0)
+        向量换直线,返回的是字母代号。如果temp=True 返回字典。
+        """
         if self.reduce_errors(vector[0])==0 and self.reduce_errors(vector[1])==0:
             return None
         if self.reduce_errors(vector[0])==0:
@@ -260,7 +264,7 @@ class Tools2D:
         else:
             a=1
         b=self.line_solve_general(a=a,x=passing_point[0],y=passing_point[1],k=k)['b']
-        return self.line_drop(a=a,k=k,b=b)
+        return self.line_drop(a=a,k=k,b=b,temp=temp)
     def line_shift(self,line_letter_or_dic, vector,rewrite=True,drop=True):
         """
             对直线进行平移操作。
@@ -387,23 +391,23 @@ class Tools2D:
         if a == 0 and k == 0:
             raise ValueError("a和k不能同时为0，请检查输入")
         if a == 0:
-            strline = f"x={b / -k}"
+            strline = f"x={round(b / -k,2)}"
             detaildic['str'] = strline
             detaildic['b'] = b / k
             detaildic['k'] = -1
             detaildic['a'] = 0
         if k == 0:
-            strline = f"y={b}"
+            strline = f"y={round(b,2)}"
             detaildic['str'] = strline
             detaildic['k'] = 0
             detaildic['b'] = b
         if a == 1 and k != 0:
             if b > 0:
-                strline = f"y={k}x+{b}"
+                strline = f"y={round(k,2)}x+{round(b,2)}"
             elif b < 0:
-                strline = f"y={k}x-{b}"
+                strline = f"y={round(k,2)}x-{abs(round(b,2))}"
             elif b == 0:
-                strline = f"y={k}x"
+                strline = f"y={round(k,2)}x"
             else: raise ValueError(f"b值出现错误,b为:{b}")
             detaildic['str'] = strline
             detaildic['k'] = k
