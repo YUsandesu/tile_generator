@@ -1382,6 +1382,7 @@ def screen_draw_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
     x_range,y_range=screen_info['x_range'],screen_info['y_range']
     tem=Tools2D()
     for key,de_dic in linedic.items():
+        #TODO 这里计算量很大，导致单进程效率很低，需要进行多进程处理
         tem.line_to_Segmentline(de_dic,x_range=x_range,y_range=y_range)
     py5.stroke(color)
     py5.stroke_weight(stroke_weight)

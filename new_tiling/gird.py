@@ -75,7 +75,7 @@ def create_gird(sides,distance=0,zoom=100,center=(100,100),line_num=50):
         for in_times,num in enumerate(range(2,len_gird,2)):#遍历偶数
             new_gird_dict[-(in_times+1)] = the_gird_dict[key_list[num]] #负方向移动的平行线
         back_list.append(new_gird_dict.copy())
-
+    #TODO 此处应该单独返回vector字典，字典内容要保证向量顺序
     back_dict={}
     back_keys=list(vector) #gird顺序 应该和vector(原始向量)顺序 是对应的
     for t,the_back_gird in enumerate(back_list):
@@ -109,6 +109,7 @@ def draw():
     the_vector = list(the_gird_dict.keys())
     screen_draw_vector(the_vector,screen_axis(-50,-50))
     for times,i in enumerate(the_gird):
+        #TODO 此处由于字典很大 速度会变慢 需要解决
         screen_draw_lines(i,color=color[times%len(color)])
     screen_draw_lines(get_o_gird(the_gird),stroke_weight=5,color=py5.color(0,0,0,125))
     screen_print_fps()
