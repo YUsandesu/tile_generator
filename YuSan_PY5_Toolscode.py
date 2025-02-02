@@ -238,7 +238,7 @@ class Tools2D:
         return back
     def reduce_errors(self,num,max=1e10,min=1e-10):
         """
-        如果接近无穷大返回None，接近无穷下返回0
+        如果接近无穷大返回None，接近无穷小返回0
         """
         if abs(num)>max:
             return None
