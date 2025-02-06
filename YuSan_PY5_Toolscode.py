@@ -1,17 +1,8 @@
-from os import remove
-
 import numpy as np
 import py5
 from collections import defaultdict
 import math
 import random
-
-from astropy.units.quantity_helper.function_helpers import solve
-from docutils.utils.math.latex2mathml import letters
-from nltk.translate.ibm_model import AlignmentInfo
-from py5 import point, ARGS_LOCATION
-from sqlalchemy import false
-from sympy.series.gruntz import rewrite
 
 class Tools2D:
     """
@@ -177,7 +168,7 @@ class Tools2D:
         """
         A_x, A_y = self.point_get_info(Apoint)['location']
         B_x, B_y = self.point_get_info(Bpoint)['location']
-        vector = [B_x - A_x, B_y - A_y]
+        vector = [self.reduce_errors(B_x - A_x), self.reduce_errors(B_y - A_y)]
         return vector
     def point_shift(self, point, vector):
         """
@@ -223,7 +214,11 @@ class Tools2D:
         np_vector = np.array(vector)
         rotated_vector = np.dot(rotation_matrix, np_vector)# 旋转向量
         return list(rotated_vector)
-    def vector_norm(self, vector, norm=1):
+    def vector_get_norm(self,vector):
+        #math.hypot 函数可以正确处理负数
+        back = math.hypot(vector[0],vector[1])
+        return
+    def vector_change_norm(self, vector, norm=1):
         """
         调整向量的模长
         返回一个新的vector[x,y]
@@ -240,18 +235,35 @@ class Tools2D:
         multiple = norm / math.hypot(v_x, v_y)
         back = [v_x * multiple, v_y * multiple]
         return back
-    def vector_to_line(self,vector,passing_point):
-        if vector[0]==0 and vector[1]==0:
+    def reduce_errors(self,num,max=1e10,min=1e-10):
+        """
+        如果接近无穷大返回None，接近无穷小返回0
+        """
+        if abs(num)>max:
             return None
-        if vector[0]==0:
+        elif abs(num)<min:
+            return 0
+        return num
+    def  vector_to_line(self,vector,passing_point=(0,0),temp=False):
+        """
+        passing_point,直线经过的点，默认(0，0)
+        向量换直线,返回的是字母代号。如果temp=True 返回字典。
+        """
+        if self.reduce_errors(vector[0])==0 and self.reduce_errors(vector[1])==0:
+            return None
+        if self.reduce_errors(vector[0])==0:
             #x=b ; k=-1 a=0
             return self.line_drop(a=0,k=-1,b=passing_point[0])
-        if vector[1]==0:
+        if self.reduce_errors(vector[1])==0:
             #y=b ;a=1 k=0
             return self.line_drop(a=1,k=0,b=passing_point[1])
-        k=vector[1]/vector[0]
-        b=self.line_solve_general(a=1,x=passing_point[0],y=passing_point[1],k=k)['b']
-        return self.line_drop(a=1,k=k,b=b)
+        k=self.reduce_errors(vector[1]/vector[0])
+        if k is None:
+            a=0
+        else:
+            a=1
+        b=self.line_solve_general(a=a,x=passing_point[0],y=passing_point[1],k=k)['b']
+        return self.line_drop(a=a,k=k,b=b,temp=temp)
     def line_shift(self,line_letter_or_dic, vector,rewrite=True,drop=True):
         """
             对直线进行平移操作。
@@ -378,23 +390,24 @@ class Tools2D:
         if a == 0 and k == 0:
             raise ValueError("a和k不能同时为0，请检查输入")
         if a == 0:
-            strline = f"x={b / -k}"
+            strline = f"x={round(b / -k,2)}"
             detaildic['str'] = strline
             detaildic['b'] = b / k
             detaildic['k'] = -1
             detaildic['a'] = 0
         if k == 0:
-            strline = f"y={b}"
+            strline = f"y={round(b,2)}"
             detaildic['str'] = strline
             detaildic['k'] = 0
             detaildic['b'] = b
         if a == 1 and k != 0:
             if b > 0:
-                strline = f"y={k}x+{b}"
+                strline = f"y={round(k,2)}x+{round(b,2)}"
             elif b < 0:
-                strline = f"y={k}x-{b}"
+                strline = f"y={round(k,2)}x-{abs(round(b,2))}"
             elif b == 0:
-                strline = f"y={k}x"
+                strline = f"y={round(k,2)}x"
+            else: raise ValueError(f"b值出现错误,b为:{b}")
             detaildic['str'] = strline
             detaildic['k'] = k
             detaildic['b'] = b
@@ -432,8 +445,10 @@ class Tools2D:
 
     def line_to_Segmentline(self, line, x_range=None, y_range=None, floor=0, color=py5.color(0, 0, 0, 255), strokeweight=3,
                             visible=True):
-        inputvalue = {'floor': floor, 'color': color, 'strokeweight': strokeweight, 'visible': visible}
-
+        """
+        line:可以接受 letter 或者 dict
+        x_range,y_range:如果不提供默认使用屏幕尺寸
+        """
         def xrange_to_Segline(range):
             range_min = range[0]
             range_max = range[1]
@@ -444,80 +459,134 @@ class Tools2D:
             )
             return back
 
+        inputvalue = {'floor': floor, 'color': color, 'strokeweight': strokeweight, 'visible': visible}
+
+        #如果提供的不是字典，那么在line_dic中查找
+        if not isinstance(line,dict):
+            if not line in self.line_dic:
+                raise ValueError(f'没有找到给定line：{line}')
+            line = self.line_dic[line]
+
+        # 如果没有提供取值范围
         if x_range is None and y_range is None:
-            #如果没有提供取值范围,就使用屏幕范围
+            print('没有提供 x_range 和 y_range 取值范围,使用屏幕范围')
             if self.screeninfo is None:
-                raise ValueError("没有提供取值范围")
+                raise ValueError("没有提供屏幕范围参数")
             x_range = self.screeninfo['xrange']
             y_range = self.screeninfo['yrange']
-            y_to_x_min = self.line_solve(line, y_range[0])
-            y_to_x_max = self.line_solve(line, y_range[1])
-            y_to_x_range = [y_to_x_min, y_to_x_max]
-            new_range_x = self.get_inter_range(x_range, y_to_x_range)
-            return xrange_to_Segline(new_range_x)
+        if x_range is None and self.screeninfo is not None:
+            # 没有提供x_range取值范围,但可以使用屏幕范围的x_range缩小计算量
+            x_range = self.screeninfo['xrange']
+        if y_range is None and self.screeninfo is not None:
+            # 没有提供y_range取值范围,但可以使用屏幕范围的y_range缩小计算量
+            y_range = self.screeninfo['yrange']
 
-        if x_range is not None and y_range is None:
-            #如果提供了x范围
-            xmin = min(x_range[0], x_range[1])
-            xmax = max(x_range[0], x_range[1])
-            if xmin == xmax:
-                raise ValueError(f"输入的范围{x_range}有误,是一个点而不是范围")
-            return xrange_to_Segline([xmin, xmax])
-        if y_range is not None and x_range is None:
-            #如果提供的是y的范围,那么就换算成x的范围
-            if y_range[0] == y_range[1]:
-                raise ValueError(f"输入的范围{y_range}有误,是一个点而不是范围")
-            x1 = self.line_solve(line, y=y_range[0])
-            x2 = self.line_solve(line, y=y_range[1])
-            xmin = min(x1, x2)
-            xmax = max(x1, x2)
-            return xrange_to_Segline([xmin, xmax])
+        # 如果是垂直线（ay=kx+b,其中a=0）
+        if 'a' in line:
+            if line['a'] != 0:
+                raise ValueError(f'无法处理a不等于0的时刻，检查line：{line}')
+            # 0=kx+b
+            value_k = line['k']
+            value_b = line['b']
+            value_x = value_b / - value_k
+            # 垂直线只需要y值。
+            if y_range is None:
+                raise ValueError(f'垂直线{line}没有y_range无法求解成直线，因为必须要屏幕范围')
+            elif y_range[0] == y_range[1]:  # 垂直线y取值范围为一个点，无法生成直线
+                raise False
+
+            if x_range is not None:
+                x_min, x_max = sorted([x_range[0], x_range[1]])
+                if x_min <= value_x <= x_max:  # 垂直线要在x的取值范围中
+                    return self.Segmentline_drop(Apoint=[value_x, y_range[0]],
+                                                 Bpoint=[value_x, y_range[1]],
+                                                 **inputvalue)
+                return False  # 不在范围中返回False
+            else:
+                return self.Segmentline_drop(Apoint=[value_x, y_range[0]],
+                                             Bpoint=[value_x, y_range[1]],
+                                             **inputvalue)
+
+        #整理取值范围，返回x_min,x_max,y_to_x_min,y_to_x_max,y_min,y_max
+        if x_range is not None:
+            x_min, x_max = sorted([x_range[0], x_range[1]])
+            if x_min==x_max: return False #上文已经判断过垂直线的情况，如果出现x取值范围是一个点，那么不可能有解
+        if y_range is not None:
+            y_min, y_max = sorted([y_range[0], y_range[1]])
+            y_min_to_x=self.line_solve(line,y=y_min)
+            y_max_to_x=self.line_solve(line,y=y_max)
+            if y_min_to_x is None and y_max_to_x is None:
+                # 处理水平线
+                y_value = self.line_solve(line, x=0)  #获取水平线的固定 y 值
+                if not (y_min <= y_value <= y_max):#校验 y 值是否在范围内
+                    return False  # y 值超出允许范围
+                # 返回水平线段
+                return self.Segmentline_drop(
+                    Apoint=[x_min, y_value],
+                    Bpoint=[x_max, y_value],
+                    **inputvalue
+                )
+            elif y_min_to_x is None or y_max_to_x is None:
+                raise ValueError(f"取值{y_min_to_x,y_max_to_x}只出现一个是无穷大，未知错误")
+            y_to_x_min,y_to_x_max=sorted([y_min_to_x,y_max_to_x])
+            if y_to_x_min==y_to_x_max:return False #未知错误，此时是垂直线，因为y取任何值时x值都是相同的，但是上文已经判断过a=0的情况
+
+        if x_range is None:
+            #此时y_range必然存在。不存在赋值前引用
+            # 因为上文存在判断：x_range is None and y_range is None
+            return self.Segmentline_drop([y_min_to_x,y_min],[y_max_to_x,y_max],**inputvalue)
+        if y_range is None:
+            x_min_to_y=self.line_solve(line,x=x_min)
+            x_max_to_y = self.line_solve(line, x=x_max)
+            return self.Segmentline_drop([x_min, x_min_to_y], [x_max,x_max_to_y], **inputvalue)
+
         if x_range is not None and y_range is not None:
-            #如果都提供了,就把y也换算成x的范围,然后调用get_inter_range找到交集
-            y_to_x_min = self.line_solve(line, y=y_range[0])
-            y_to_x_max = self.line_solve(line, y=y_range[1])
+            #把y也换算成x的范围
             y_to_x_range = [y_to_x_min, y_to_x_max]
-            new_range_x = self.get_inter_range(x_range, y_to_x_range)
-            if new_range_x is None:
-                # raise ValueError(f"获取{x_range}和{y_to_x_range}交集失败")
-                return False
-            if new_range_x[0] == new_range_x[1]:
-                # raise ValueError(f"输入的范围{x_range}有误,是一个点而不是范围")
-                return False
+            new_range_x = self.get_inter_range(x_range, y_to_x_range)#调用get_inter_range找到交集
+            if new_range_x is None:return False
+            if new_range_x[0] == new_range_x[1]:return False
             return xrange_to_Segline(new_range_x)
 
     def line_solve(self, line_letter_or_detaildic, x=None, y=None):
         """
-        给定x或y，解决一个函数问题y=kx+b
-        :param line_letter_or_detaildic: 直线的标识字母 例：a,或者一个包含详细信息的字典
-        a只能接受0或1
+        给定 x 或 y，解决直线方程 ay = kx + b 的问题。
+        :param line_letter_or_detaildic: 直线的标识字母（例：'a'），或者一个包含详细信息的字典。
+        :param x: 已知的 x 值。
+        :param y: 已知的 y 值。
+        :return: 求解的另一个坐标值。
+        如果返回None代表可以取任意值
         """
+        # 获取直线的详细信息
         if isinstance(line_letter_or_detaildic, dict):
             detail_dic = line_letter_or_detaildic
         else:
-            if not line_letter_or_detaildic in self.line_dic:
+            if line_letter_or_detaildic not in self.line_dic:
                 raise ValueError("没有找到直线，直线还未创建")
             detail_dic = self.line_dic[line_letter_or_detaildic]
 
-        if x == None and y == None:
-            raise ValueError("x，y都没有输入值 无法计算")
+        # 检查是否提供了 x 或 y
+        if x is None and y is None:
+            raise ValueError("x 和 y 都没有输入值，无法计算")
 
-        if 'a' in detail_dic:
-            the_a = detail_dic['a']
-        else:
-            the_a = 1
+        # 获取直线参数
+        k = detail_dic['k']
+        a = detail_dic.get('a', 1)  # 默认 a = 1
+        b = detail_dic.get('b', 0)  # 默认 b = 0
 
-        the_b, the_k = detail_dic['b'], detail_dic['k']
-        if y == None:
-            if the_a == 0:
-                raise ValueError("无法计算，因为a=0时0y=kx+b 无法计算y")
-            # 计算y
-            return the_k * x + the_b
-        if x == None:
-            # 计算x
-            if the_k == 0:
-                raise ValueError("无法计算，因为k=0时y=0x+b 无法计算x")
-            return (y - the_b) / the_k
+        # 计算 y
+        if y is None:
+            if a == 0:
+                return None #此时为垂直线,y可以取任意值
+            return (k * x + b) / a  # y = (kx + b) / a
+
+        # 计算 x
+        if x is None:
+            if k == 0:
+                if a == 0:
+                    raise ValueError("a = 0 且 k = 0 时，方程无意义，无法计算 x")
+                return None #此时x取值为任意值
+            return (a * y - b) / k  # x = (ay - b) / k
 
     def line_solve_general(self, a=1, y=None, k=None, x=None, b=None, A_point=None, B_point=None):
         """
@@ -879,22 +948,19 @@ class Tools2D:
 
     def distance_point_to_line(self,point,line):
         #linedic例子:{'a': {'str': 'y=3x+100', 'k': 3, 'b': 100}}
-        point = self.point_get_info(point)['location'] #只获取第一项,也就是位置信息
-        if point is False:
-            raise ValueError(f'point输入的参数{point}错误')
         point_x = point[0]
         point_y = point[1]
-        detail_line_dic = line_chain_or_dic(line)
-        if detail_line_dic is False:
-            raise ValueError(f'line输入的参数{line}错误')
+        if isinstance(line,dict): detail_line_dic = line
+        elif isinstance(line,str): detail_line_dic = self.line_dic[line]
+        else: raise ValueError(f"输入的line不合符规范，为：{line}")
 
         if detail_line_dic['k']==0:
             #输入的line是一条水平线
-            return abs(detail_line_dic[b]-point_y)
+            return abs(detail_line_dic['b']-point_y)
         if 'a' in detail_line_dic:
             #输入的是一条垂直线
             #存在a键的时候 a必定为0 且k必定为-1(line_drop中就是这么规定的)
-            return abs(detail_line_dic[b] - point_x)
+            return abs(detail_line_dic['b'] - point_x)
         k_orth = -1 / detail_line_dic['k']
         # 斜率是-1/k的时候垂直
         result=self.line_solve_general(a=1, k=k_orth, x=point_x, y=point_y)
@@ -1076,6 +1142,7 @@ class Tools2D:
         """
         查找a和b的交集
         a和b的格式为[x,y]的范围
+        无交集返回None
         """
         def get_range(interval):
             # 提取范围的辅助函数
@@ -1163,7 +1230,7 @@ class Tools2D:
         """
         the_ascii, the_index = self.separate_letter(letter)
         if the_index > self.letter_index_capital:
-            # print("开始创建")
+            # 队列不足开始创建
             for i in range(the_index - self.letter_index_capital):
                 # 例如输入 A5 当前序号为3:[B3,C3....Z3]在添加两个循环(5-3) 得到[B3...Z5]
                 self.letter_queue_capital.extend(
@@ -1268,6 +1335,7 @@ def screen_draw_surface(surfacedic,floor):
         surface_drawed[-1].vertices(vertices)
         surface_drawed[-1].end_shape()
         py5.shape(surface_drawed[-1])
+
 def screen_draw_SegmentLine(SegmentLine_dic, floor):
     for key, val in SegmentLine_dic.items():
         if val['floor']!=floor:
@@ -1293,8 +1361,8 @@ def screen_draw_vector(vector_or_vector_list,start_point):
         """
         arrow_vector_A = tem.vector_rotate(vector,180-30)
         arrow_vector_B = tem.vector_rotate(vector,-(180-30))
-        arrow_vector_A = tem.vector_norm(arrow_vector_A,norm=10)
-        arrow_vector_B = tem.vector_norm(arrow_vector_B,norm=10)
+        arrow_vector_A = tem.vector_change_norm(arrow_vector_A, norm=10)
+        arrow_vector_B = tem.vector_change_norm(arrow_vector_B, norm=10)
         arrow_end_A = tem.point_shift(arrow_vector_A,vector=vector)
         arrow_end_B = tem.point_shift(arrow_vector_B, vector=vector)
         return arrow_end_A,arrow_end_B
@@ -1314,6 +1382,7 @@ def screen_draw_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
     x_range,y_range=screen_info['x_range'],screen_info['y_range']
     tem=Tools2D()
     for key,de_dic in linedic.items():
+        #TODO 这里计算量很大，导致单进程效率很低，需要进行多进程处理
         tem.line_to_Segmentline(de_dic,x_range=x_range,y_range=y_range)
     py5.stroke(color)
     py5.stroke_weight(stroke_weight)
@@ -1325,6 +1394,17 @@ def screen_draw_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
         line_todraw.append(the_line)
     py5.lines(np.array(line_todraw, dtype=np.float32))
 
+def screen_draw_points( pointdic,size=5,color=py5.color(255,0,0,255),fill=py5.color(0,0,0,255) ):
+    """
+    fill可以输入None 得到空心点
+    """
+    for key,value in pointdic.items():
+        x,y=value
+        py5.stroke_weight(2)
+        py5.stroke(color)
+        if fill is None: py5.no_fill()
+        else:py5.fill(fill)
+        py5.circle(x , y , size)
 
 def screen_draw(f=3, Seglinedic=None, surfdic=None):
     """
@@ -1373,7 +1453,7 @@ def screen_axis(x=0,y=0):
     y=py5.height/2+y
     return [x,y]
 
-def test_random_point(creat_num=1500,del_num=1000,num=10):
+def random_point(creat_num=1500, del_num=1000, num=10):
     """
     随机创建一些点,返回point_dic
     creat_num:随机创建点数量
@@ -1381,15 +1461,16 @@ def test_random_point(creat_num=1500,del_num=1000,num=10):
     num:循环以上过程次数
     """
     p=Tools2D()
+    the_screen=screen_get_info()
     for n in range(num):
         for i in range(creat_num):
-            p.point_drop([random.randint(0, 10), random.randint(0, 10)])
+            p.point_drop([random.randint(*screen_get_info()['x_range']), random.randint(*screen_get_info()['y_range'])])
         for i in range(del_num):
             p_letter = list(p.point_dic.keys())
             p.point_remove_by_letter(random.choice(p_letter))
     return p.point_dic
 
-def test_random_segline(number=100):
+def random_segline(number=100):
     """
     随机生成number条线段
     返回线段字典Segmentline_dic
@@ -1404,7 +1485,7 @@ def test_random_segline(number=100):
     # print(lines.get_Segmentline_dic())
     return lines.get_Segmentline_dic()
 
-def test_line_in_extreme(num=500):
+def line_in_extreme(num=500):
     lines = Tools2D()
     for i in range(num):
         a = random.randint(-3, 3)
@@ -1413,3 +1494,4 @@ def test_line_in_extreme(num=500):
             continue
         lines.line_drop(k=k, b=random.randint(-100, 100), a=a)
     return lines.get_line_dic()
+
