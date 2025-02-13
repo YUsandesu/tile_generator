@@ -22,8 +22,14 @@ class Tools2D:
         self.letter_queue_capital = self.alphabetize_Capital.copy()  # [A,B,C,D...Z]
         self.letter_index = 0  # 字母的后缀序列
         self.letter_index_capital = 0  # 字母的后缀序列
-        if not screen_info is None:
+        if screen_info:
             self.screeninfo=screen_info
+
+    def reset(self):
+        """
+        调用_init_()重新初始化
+        """
+        self.__init__()
     def get_point_dic(self):
         return self.point_dic
     def get_Segmentline_dic(self):
@@ -32,6 +38,9 @@ class Tools2D:
             back_dic[i]=self.Segmentline_get_info(i)
         return back_dic
     def get_line_dic(self):
+        """
+        line_dic格式:{字母代号:{a:int,k:int,b:int}, 字母代号:{...}, ...}
+        """
         return self.line_dic
     def get_surface_dic(self):
         return self.surface_dic
@@ -197,6 +206,7 @@ class Tools2D:
         """
         把向量按照theta角度(度数)旋转
         vector接受单个点,也接受一组点
+        返回:新的向量列表
         """
         # 将角度转换为弧度
         theta = np.radians(theta)
@@ -213,7 +223,9 @@ class Tools2D:
             return backlist
         np_vector = np.array(vector)
         rotated_vector = np.dot(rotation_matrix, np_vector)# 旋转向量
-        return list(rotated_vector)
+
+        x,y=list(rotated_vector) #防止无限接近0的情况
+        return [self.reduce_errors(x),self.reduce_errors(y)]
     def vector_get_norm(self,vector):
         #math.hypot 函数可以正确处理负数
         back = math.hypot(vector[0],vector[1])
@@ -253,7 +265,7 @@ class Tools2D:
             return None
         if self.reduce_errors(vector[0])==0:
             #x=b ; k=-1 a=0
-            return self.line_drop(a=0,k=-1,b=passing_point[0])
+            return self.line_drop(a=0,k=-1,b=-passing_point[0])
         if self.reduce_errors(vector[1])==0:
             #y=b ;a=1 k=0
             return self.line_drop(a=1,k=0,b=passing_point[1])
@@ -264,6 +276,7 @@ class Tools2D:
             a=1
         b=self.line_solve_general(a=a,x=passing_point[0],y=passing_point[1],k=k)['b']
         return self.line_drop(a=a,k=k,b=b,temp=temp)
+
     def line_shift(self,line_letter_or_dic, vector,rewrite=True,drop=True):
         """
             对直线进行平移操作。
@@ -291,6 +304,7 @@ class Tools2D:
             k = -1
             new_b = detail['b']+vector[0]
             detail['b'] = new_b
+            detail['str'] = f'x={-new_b}'
             if drop:
                 return self.line_drop(k=k, b=new_b,a=a)
 
@@ -302,13 +316,15 @@ class Tools2D:
             if k == 0:
                 # y=b
                 new_b = detail['b'] + vector[1]
+                detail['str'] = f'y={new_b}'
             else:
                 new_b = b + k * vector[0] - vector[1]
-                # y+v_y = k*(x+v_x) + b
-                # y = kx + k * v_x + b - v_y
+                if new_b > 0: detail['str'] = f'y={new_b}x+{new_b}'
+                if new_b == 0: detail['str'] = f'y={new_b}x'
+                if new_b < 0: detail['str'] = f'y={new_b}x{new_b}'
+
 
         detail['b']=new_b
-
         if letter is not None:
             if rewrite:
                 # 更新 self.line_dic 中的直线信息
@@ -485,17 +501,17 @@ class Tools2D:
         if 'a' in line:
             if line['a'] != 0:
                 raise ValueError(f'无法处理a不等于0的时刻，检查line：{line}')
-            # 0=kx+b
+            # 0=-x+b
             value_k = line['k']
             value_b = line['b']
-            value_x = value_b / - value_k
-            # 垂直线只需要y值。
+            value_x = value_b / -value_k
+            #垂直线的Y值(x=b/(-k))
             if y_range is None:
                 raise ValueError(f'垂直线{line}没有y_range无法求解成直线，因为必须要屏幕范围')
-            elif y_range[0] == y_range[1]:  # 垂直线y取值范围为一个点，无法生成直线
-                raise False
+            elif y_range[0] == y_range[1]:
+                raise ValueError(f'垂直线{line}取值范围为一个点，无法生成直线')
 
-            if x_range is not None:
+            if x_range:
                 x_min, x_max = sorted([x_range[0], x_range[1]])
                 if x_min <= value_x <= x_max:  # 垂直线要在x的取值范围中
                     return self.Segmentline_drop(Apoint=[value_x, y_range[0]],
@@ -1381,12 +1397,14 @@ def screen_draw_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
     screen_info=screen_get_info()
     x_range,y_range=screen_info['x_range'],screen_info['y_range']
     tem=Tools2D()
+
     for key,de_dic in linedic.items():
         #TODO 这里计算量很大，导致单进程效率很低，需要进行多进程处理
         tem.line_to_Segmentline(de_dic,x_range=x_range,y_range=y_range)
     py5.stroke(color)
     py5.stroke_weight(stroke_weight)
     line_todraw=[]
+
     for key, value in tem.Segmentline_dic.items():
         #整理输入参数格式,py5.line需要的格式[[x1 y1 x2 y2] [...]]
         a_point,b_point=tem.Segmentline_get_info(key)['location']

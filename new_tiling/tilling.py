@@ -7,18 +7,21 @@ from YuSan_PY5_Toolscode import *
 
 #TODO 根据gird的字典头，创建tilling拼块
 #具体方法：
+
 #+++++奇数+++++
 #sym=5时 会有10条向量 若原始向量为A B C D E
 #那么：存在-A -B -C -D -E 方向和原始向量相反
 #最终排列顺序：A -D  B -E  C -A  D -B  E  -C
 #           1  2  3  4  5  6  7  8  9  10
 #360/10=[36] --> 180/36=[5] -->5+1=6 所以第六位是A
+
 #+++++偶数+++++
-#sym=6时 原始向量已经存在互相相反的向量了，所有只有6条向量
+#sym=6时 原始向量已经存在互相相反的向量了，所以只有6条向量
 #A B C D E F
 #1 2 3 4 5 6
 #360/6=60 180/60=3 3+1=4 -->第四条（D）是和A相反的向量
 #A出发的直线与原始向量A方向相同，-A出发的直线与原始向量A的方向相反
+
 #TODO 以右手系排序交点向量（需要分奇偶）
 
 def setup():
@@ -26,7 +29,6 @@ def setup():
 
 def draw():
     py5.background(155)
-
 
 def get_inter_2dict(a_dict,b_dict):
     """
@@ -51,6 +53,7 @@ def distance_line_dict(line_dict,center=(250,250)):
     t=Tools2D()
     back_line_dict={}
     rename=0
+
     for key,value in line_dict.items():
         the_distance=t.distance_point_to_line(point=center,line=value)
         if the_distance in back_line_dict:
@@ -66,9 +69,10 @@ def distance_line_dict(line_dict,center=(250,250)):
     return back_line_dict
 
 
-the_gird_dict=gird.create_gird(5,50,100,[250,250],line_num=3)
-new_grid_dict = {str(key): value for key, value in the_gird_dict.items()}
+gird_data=gird.create_gird(5, 50, 100, [250, 250], num_of_line=3)
+new_grid_dict = {str(key): value for key, value in gird_data.items()}
 
+#'w'：表示“写”模式。如果文件存在，内容会被清空并重新写入；如果文件不存在，会创建一个新文件。
 with open('output.json','w') as js_file:
     json.dump(new_grid_dict,js_file,indent=4)
 # py5.run_sketch()
