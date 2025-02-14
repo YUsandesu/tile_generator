@@ -264,14 +264,17 @@ class Tools2D:
         if self.reduce_errors(vector[0])==0 and self.reduce_errors(vector[1])==0:
             return None
         if self.reduce_errors(vector[0])==0:
+            #垂直情况
             #x=b ; k=-1 a=0
-            return self.line_drop(a=0,k=-1,b=-passing_point[0])
+            return self.line_drop(a=0,k=-1,b=passing_point[0])
         if self.reduce_errors(vector[1])==0:
+            #水平情况
             #y=b ;a=1 k=0
             return self.line_drop(a=1,k=0,b=passing_point[1])
+
         k=self.reduce_errors(vector[1]/vector[0])
         if k is None:
-            a=0
+            a=0 #无穷小
         else:
             a=1
         b=self.line_solve_general(a=a,x=passing_point[0],y=passing_point[1],k=k)['b']
@@ -307,9 +310,6 @@ class Tools2D:
             detail['str'] = f'x={-new_b}'
             if drop:
                 return self.line_drop(k=k, b=new_b,a=a)
-
-
-
         else:
             b = detail['b']
             k = detail['k']
@@ -319,11 +319,9 @@ class Tools2D:
                 detail['str'] = f'y={new_b}'
             else:
                 new_b = b + k * vector[0] - vector[1]
-                if new_b > 0: detail['str'] = f'y={new_b}x+{new_b}'
-                if new_b == 0: detail['str'] = f'y={new_b}x'
-                if new_b < 0: detail['str'] = f'y={new_b}x{new_b}'
-
-
+                if new_b > 0: detail['str'] = f'y={k}x+{new_b}'
+                if new_b == 0: detail['str'] = f'y={k}x'
+                if new_b < 0: detail['str'] = f'y={k}x{new_b}'
         detail['b']=new_b
         if letter is not None:
             if rewrite:
@@ -406,25 +404,26 @@ class Tools2D:
         if a == 0 and k == 0:
             raise ValueError("a和k不能同时为0，请检查输入")
         if a == 0:
-            strline = f"x={round(b / -k,2)}"
-            detaildic['str'] = strline
-            detaildic['b'] = b / k
+            line_str = f"x={round(b / -k / -1, 2)}"
+            detaildic['b'] = b / -k #0y=kx+b b/-k=x
             detaildic['k'] = -1
+
+            detaildic['str'] = line_str
             detaildic['a'] = 0
         if k == 0:
-            strline = f"y={round(b,2)}"
-            detaildic['str'] = strline
+            line_str = f"y={round(b,2)}"
+            detaildic['str'] = line_str
             detaildic['k'] = 0
             detaildic['b'] = b
         if a == 1 and k != 0:
             if b > 0:
-                strline = f"y={round(k,2)}x+{round(b,2)}"
+                line_str = f"y={round(k,2)}x+{round(b,2)}"
             elif b < 0:
-                strline = f"y={round(k,2)}x-{abs(round(b,2))}"
+                line_str = f"y={round(k,2)}x{(round(b,2))}"
             elif b == 0:
-                strline = f"y={round(k,2)}x"
+                line_str = f"y={round(k,2)}x"
             else: raise ValueError(f"b值出现错误,b为:{b}")
-            detaildic['str'] = strline
+            detaildic['str'] = line_str
             detaildic['k'] = k
             detaildic['b'] = b
         if a != 0 and a != 1 and a is not None:
@@ -865,10 +864,10 @@ class Tools2D:
         """
         :param Aline_letter_or_kba_dic: 可以是代号，也可以是save_line(temp=true)的返回值：一个包含k，b，a的字典
         :param Bline_letter_or_kba_dic: 可以是代号，也可以是save_line(temp=true)的返回值：一个包含k，b，a的字典
+        返回值:[x,y]
         """
         x = None
         y = None
-
         if isinstance(Aline_letter_or_kba_dic, str):
             detail_dicA = self.line_dic[Aline_letter_or_kba_dic]
         else:

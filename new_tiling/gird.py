@@ -65,7 +65,10 @@ def create_gird(sides, distance=0, zoom=100, center=(100,100), num_of_line=50):
 
             gird[the_key][the_time+1] = line_positive_detail
             gird[the_key][-(the_time+1)] = line_negative_detail
-    print(gird)
+    print("========开始输出========")
+    for i,value in gird.items():
+        print(i,'\n',value,'\n')
+    print("=======================")
     return gird
 
 
@@ -77,8 +80,8 @@ def setup():
     slider('sides',[50,py5.height-120],value=5,range=[3,15])
     slider('distance',location=[50,py5.height-90],value=15,range=[0,500])
     slider('zoom',location=[50,py5.height-60],value=150,range=[0,500])
-    slider('num',location=[50,py5.height-30],size=[500,20],value=50,range=[0,500])
-    gird_data = create_gird(5, 15, zoom=150, num_of_line=50, center=screen_axis(0, 0))
+    slider('num',location=[50,py5.height-30],size=[500,20],value=1,range=[0,500])
+    gird_data = create_gird(5, 15, zoom=150, num_of_line=1, center=screen_axis(0, 0))
     #print(f"初次生成the_gird:{the_gird}")
 
 def draw():
@@ -91,7 +94,7 @@ def draw():
                               center=screen_axis(0,0),
                               num_of_line=back['num'])
     py5.background(255)
-    the_lines_dict_list = list(gird_data.values()) #一个字典中 包含很多组lines
+    the_lines_dict_list = list(gird_data.values()) #一个列表中 包含很多组字典
 
     the_vector = list(gird_data.keys())
     screen_draw_vector(the_vector,screen_axis(-50,-50))
