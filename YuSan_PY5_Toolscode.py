@@ -235,18 +235,26 @@ class Tools2D:
         调整向量的模长
         返回一个新的vector[x,y]
         """
+        print('vector_change_norm输入:',vector)
         if not isinstance(vector, (tuple, list)) or len(vector) != 2:
             raise ValueError(f"平移向量错误,当前为{vector}")
         v_x, v_y = vector
         if v_x == 0 and v_y == 0:
             raise ValueError("无法修改0向量的模长")
         if v_x == 0:
+            if vector[1]<0:
+                #负数情况
+                return [0, -norm]
             return [0, norm]
         if v_y == 0:
+            if vector[0]<0:
+                return [-norm,0]
             return [norm, 0]
         multiple = norm / math.hypot(v_x, v_y)
         back = [v_x * multiple, v_y * multiple]
+        print('vector_change_norm输出:', vector)
         return back
+
     def reduce_errors(self,num,max=1e10,min=1e-10):
         """
         如果接近无穷大返回None，接近无穷小返回0
@@ -405,10 +413,9 @@ class Tools2D:
             raise ValueError("a和k不能同时为0，请检查输入")
         if a == 0:
             line_str = f"x={round(b / -k / -1, 2)}"
+            detaildic['str'] = line_str
             detaildic['b'] = b / -k #0y=kx+b b/-k=x
             detaildic['k'] = -1
-
-            detaildic['str'] = line_str
             detaildic['a'] = 0
         if k == 0:
             line_str = f"y={round(b,2)}"
