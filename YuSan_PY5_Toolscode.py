@@ -235,7 +235,6 @@ class Tools2D:
         调整向量的模长
         返回一个新的vector[x,y]
         """
-        print('vector_change_norm输入:',vector)
         if not isinstance(vector, (tuple, list)) or len(vector) != 2:
             raise ValueError(f"平移向量错误,当前为{vector}")
         v_x, v_y = vector
@@ -252,19 +251,18 @@ class Tools2D:
             return [norm, 0]
         multiple = norm / math.hypot(v_x, v_y)
         back = [v_x * multiple, v_y * multiple]
-        print('vector_change_norm输出:', vector)
         return back
-
-    def reduce_errors(self,num,max=1e10,min=1e-10):
+    def reduce_errors(self, num, max_value=1e10, min_value=1e-10):
         """
         如果接近无穷大返回None，接近无穷小返回0
         """
-        if abs(num)>max:
+        if abs(num)>max_value:
             return None
-        elif abs(num)<min:
+        elif abs(num)<min_value:
             return 0
         return num
-    def  vector_to_line(self,vector,passing_point=(0,0),temp=False):
+
+    def vector_to_line(self,vector,passing_point=(0,0),temp=False):
         """
         passing_point,直线经过的点，默认(0，0)
         向量换直线,返回的是字母代号。如果temp=True 返回字典。
@@ -287,19 +285,20 @@ class Tools2D:
             a=1
         b=self.line_solve_general(a=a,x=passing_point[0],y=passing_point[1],k=k)['b']
         return self.line_drop(a=a,k=k,b=b,temp=temp)
-
     def line_shift(self,line_letter_or_dic, vector,rewrite=True,drop=True):
         """
-            对直线进行平移操作。
+            对line或directed_line进行平移操作。
 
             参数:
                 line_letter_or_dic (str or dict): 直线的标识符（字符串）或直线的详细信息（字典）。
-                vector (tuple or list): 平移向量，长度为 2。
+                vector (tuple or list): 平移向量[x,y]
                 rewrite (bool): 是否更新 self.line_dic 中的直线信息。
                 drop (bool): 当前直线还未创建,创建一个新的直线对象。
         """
+        k=None
         if not isinstance(vector, (tuple, list)) or len(vector) != 2:
             raise ValueError(f"平移向量错误,当前为{vector}")
+
         if isinstance(line_letter_or_dic, str):
             detail = self.line_dic[line_letter_or_dic].copy()
             letter = line_letter_or_dic
@@ -309,38 +308,47 @@ class Tools2D:
         else:
             raise ValueError(f"输入直线错误,为{line_letter_or_dic}")
 
-        if 'a' in detail:
+        if 'directed' in detail:#获取有向线段
+            location_x,location_y=detail['location_point']
+            detail['location_point']=[location_x+vector[0],location_y+vector[1]]
+
+        elif 'a' in detail:
             #x=b
             a = detail['a']
             k = -1
             new_b = detail['b']+vector[0]
             detail['b'] = new_b
-            detail['str'] = f'x={-new_b}'
+            detail['str'] = f'x={round(new_b,2)}'
             if drop:
                 return self.line_drop(k=k, b=new_b,a=a)
-        else:
+
+        else:# 处理普通直线（y = kx + b 或水平线 y = b）
             b = detail['b']
             k = detail['k']
-            if k == 0:
+
+            if k == 0:# 水平线（y = original_b）
                 # y=b
                 new_b = detail['b'] + vector[1]
-                detail['str'] = f'y={new_b}'
+                detail['str'] = f'y={round(new_b, 2)}'
             else:
-                new_b = b + k * vector[0] - vector[1]
-                if new_b > 0: detail['str'] = f'y={k}x+{new_b}'
-                if new_b == 0: detail['str'] = f'y={k}x'
-                if new_b < 0: detail['str'] = f'y={k}x{new_b}'
-        detail['b']=new_b
-        if letter is not None:
-            if rewrite:
-                # 更新 self.line_dic 中的直线信息
-                self.line_dic[letter] = detail
-                return letter
-        if drop:
-            # 返回新的直线对象
-            return self.line_drop(k, new_b)
-        else:
-            # 返回更新后的直线详细信息
+                new_b = b + vector[1] - k * vector[0] #(y-v1)=k(x-v0)+b-->y=kx - k*v0 + v1 +b -->b -k*v0 + v1
+                if new_b > 0: detail['str'] = f'y={round(k, 2)}x+{round(new_b, 2)}'
+                if new_b == 0: detail['str'] = f'y={round(k, 2)}x'
+                if new_b < 0: detail['str'] = f'y={round(k, 2)}x{round(new_b, 2)}'
+            detail['b']=new_b
+
+        if letter and rewrite:
+            # 更新 self.line_dic 中的直线信息
+            self.line_dic[letter] = detail
+            return letter
+
+        if drop:#返回新的直线对象
+            if 'directed' in detail:
+                return self.directed_line_drop(detail['location_point'],detail['direction_vector'])
+            if k:
+                return self.line_drop(k=detail.get('k'), b=detail['b'], a=detail.get('a', 1))
+
+        else: #返回更新后的直线详细信息
             return detail
 
     # ////////////《线操作》////////////
@@ -402,26 +410,26 @@ class Tools2D:
     def line_drop(self, k, b, a=1, temp=False):
         """
         保存一个函数：ay=kx+b
-        如果字典detaildic中有'a'键: a肯定是0 k肯定是-1(自动化简) 储存的是x=b 是一个垂直线
+        如果字典detail_dic中有'a'键: a肯定是0 k肯定是-1(自动化简) 储存的是x=b 是一个垂直线
         如果字典中 k=0 是y=b 是一个水平线
         :param a: 如果a不是1或0 会报错/#/内容:认定输入的是ay+bx+k=0
         :param temp: 如果为True 那么不创建到字典中 仅返回一个kba字典
         :return: temp=False 返回一个字母代号 例如：a temp=True 不创建到字典中 仅返回一个kba字典
         """
-        detaildic = {}
+        detail_dic = {}
         if a == 0 and k == 0:
             raise ValueError("a和k不能同时为0，请检查输入")
         if a == 0:
             line_str = f"x={round(b / -k / -1, 2)}"
-            detaildic['str'] = line_str
-            detaildic['b'] = b / -k #0y=kx+b b/-k=x
-            detaildic['k'] = -1
-            detaildic['a'] = 0
+            detail_dic['str'] = line_str
+            detail_dic['b'] = b / -k #0y=kx+b b/-k=x
+            detail_dic['k'] = -1
+            detail_dic['a'] = 0
         if k == 0:
             line_str = f"y={round(b,2)}"
-            detaildic['str'] = line_str
-            detaildic['k'] = 0
-            detaildic['b'] = b
+            detail_dic['str'] = line_str
+            detail_dic['k'] = 0
+            detail_dic['b'] = b
         if a == 1 and k != 0:
             if b > 0:
                 line_str = f"y={round(k,2)}x+{round(b,2)}"
@@ -430,29 +438,29 @@ class Tools2D:
             elif b == 0:
                 line_str = f"y={round(k,2)}x"
             else: raise ValueError(f"b值出现错误,b为:{b}")
-            detaildic['str'] = line_str
-            detaildic['k'] = k
-            detaildic['b'] = b
+            detail_dic['str'] = line_str
+            detail_dic['k'] = k
+            detail_dic['b'] = b
         if a != 0 and a != 1 and a is not None:
             raise ValueError(f"输入不符合要求,a只能是0或1,当前输入:{a}")
             # # ay+bx+c=0
             # k = b / a
             # b = k / a
             # if b > 0:
-            #     strline = f"y={k}x+{b}"
+            #     line_str = f"y={k}x+{b}"
             # elif b < 0:
-            #     strline = f"y={k}x-{b}"
+            #     line_str = f"y={k}x-{b}"
             # elif b == 0:
-            #     strline = f"y={k}x"
+            #     line_str = f"y={k}x"
             #
-            # detaildic['str'] = strline
-            # detaildic['k'] = k
-            # detaildic['b'] = b
-        if temp == True:
-            return detaildic
-        newletter = self.extract_letter()
-        self.line_dic[newletter] = detaildic
-        return newletter
+            # detail_dic['str'] = line_str
+            # detail_dic['k'] = k
+            # detail_dic['b'] = b
+        if temp:
+            return detail_dic
+        new_letter = self.extract_letter()
+        self.line_dic[new_letter] = detail_dic
+        return new_letter
 
     def line_remove(self, letter):
         """
@@ -992,6 +1000,56 @@ class Tools2D:
         point_inter = self.intersection_2line(line_orth_dic, detail_line_dic)
         return self.distance_2_points(point,point_inter)
 
+    def directed_line_drop(self,location_point=None,direction_point=None,line_chain_or_dic=None):
+        """
+        保存有向直线, 也可以将直线转换为有向直线
+        location_point:起点
+        direction_point:方向向量
+        此处使用的line_dic的字典中是ay=kx+b (a取值仅为0或1,当a=0时,字典中不存在a的键)
+        """
+        if location_point and len(location_point) != 2:
+            raise ValueError("location_point必须是包含两个元素的列表或元组")
+        if direction_point and len(direction_point) != 2:
+            raise ValueError("direction_point必须是包含两个元素的列表或元组")
+        the_location_point=None
+        the_direction_point=None
+        line_dict=None
+        if line_chain_or_dic:
+            line_dict=self.line_chain_or_dic(line_chain_or_dic)
+            if not line_dict:
+                raise ValueError(f"提供的Line错误{line_chain_or_dic}")
+            if 'a' in line_dict:#垂直情况 a取值仅为0或1,如果为1就不存在键a
+                the_direction_point=[0,1]
+                the_location_point = [line_dict['b']/(-line_dict['k']),0]
+            else:
+                the_direction_point=[1,line_dict['k']] #常规情况
+
+        if location_point:
+            lo_x,lo_y=location_point
+            if line_dict :#提供了起点,判断原点是否符合标准
+                if self.line_solve(line_dict,lo_x)!=lo_y:
+                    raise ValueError(f"提供的起点:{location_point}不在直线{line_dict}上")
+            the_location_point = location_point
+        if direction_point:
+            dr_x,dr_y=direction_point
+            if line_dict:
+                if line_dict['k']!=0 and (dr_y==0 or not math.isclose(dr_x/dr_y,line_dict['k'])):
+                    raise ValueError(f"提供的方向{direction_point}和直线{line_dict}的斜率不匹配")
+                if line_dict['k']==0 and dr_y!=0:
+                    raise ValueError(f"提供的方向{direction_point}和水平直线{line_dict}不匹配")
+            the_direction_point = direction_point
+        if the_direction_point and direction_point:
+            detail_dic = {'directed': True, 'location_point': the_location_point,
+                          'direction_point': the_direction_point}
+            new_letter = self.extract_letter()
+            self.line_dic[new_letter] = detail_dic
+            return new_letter
+        raise ValueError(f'缺少必要参数: location_point={location_point}, '
+                         f'direction_point={direction_point},'
+                         f' line_chain_or_dic={line_chain_or_dic}')
+
+
+
 
     # ////////////《面操作》////////////
     def surface_drop_by_chain(self, chain_of_point, floor=0, color=py5.color(200, 200, 20, 255), fill=False, stroke=None,
@@ -1392,12 +1450,25 @@ def screen_draw_vector(vector_or_vector_list,start_point):
     segline_group = []
     if tem.list_depth(vector_or_vector_list)==2:
         for each_vector in vector_or_vector_list:
+            if each_vector[0]==0 and each_vector[1]==0:
+                continue
             for i in arrow(each_vector):
                 segline_group.append([tem.point_shift(each_vector,start_point),tem.point_shift(i,start_point)])
             segline_group.append([start_point,tem.point_shift(each_vector,start_point)])
+    elif tem.list_depth(vector_or_vector_list)==1:
+        for i in arrow(vector_or_vector_list):
+            segline_group.append([tem.point_shift(vector_or_vector_list, start_point), tem.point_shift(i, start_point)])
+        segline_group.append([start_point, tem.point_shift(vector_or_vector_list, start_point)])
+
     for i in segline_group:
-        tem.Segmentline_drop(i[0],i[1])
+        tem.Segmentline_drop(i[0], i[1])
     screen_draw_SegmentLine(tem.get_Segmentline_dic(),floor=0)
+
+def screen_draw_directed_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
+    #把direction_vector获取出来,通过set_norm来改变长度(细分程度),然后平移direction_vector,收尾相接,得到一条渐变线
+    #1部分画虚线 ;2部分画实线
+    #从直线末端倒着画?如何取到直线末端?
+    #
 
 def screen_draw_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
     screen_info=screen_get_info()
@@ -1409,14 +1480,15 @@ def screen_draw_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
         tem.line_to_Segmentline(de_dic,x_range=x_range,y_range=y_range)
     py5.stroke(color)
     py5.stroke_weight(stroke_weight)
-    line_todraw=[]
+
+    line_to_draw=[]
 
     for key, value in tem.Segmentline_dic.items():
         #整理输入参数格式,py5.line需要的格式[[x1 y1 x2 y2] [...]]
         a_point,b_point=tem.Segmentline_get_info(key)['location']
         the_line=a_point+b_point
-        line_todraw.append(the_line)
-    py5.lines(np.array(line_todraw, dtype=np.float32))
+        line_to_draw.append(the_line)
+    py5.lines(np.array(line_to_draw, dtype=np.float32))
 
 def screen_draw_points( pointdic,size=5,color=py5.color(255,0,0,255),fill=py5.color(0,0,0,255) ):
     """
@@ -1474,7 +1546,7 @@ def screen_axis(x=0,y=0):
     从屏幕中心建立坐标系,输入x,y 返回py5的正确坐标
     """
     x=py5.width/2+x
-    y=py5.height/2+y
+    y=py5.height/2-y
     return [x,y]
 
 def random_point(creat_num=1500, del_num=1000, num=10):
