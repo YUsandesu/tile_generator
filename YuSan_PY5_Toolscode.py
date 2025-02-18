@@ -4,6 +4,9 @@ from collections import defaultdict
 import math
 import random
 
+from data_generation import shift
+
+
 class Tools2D:
     """
     有向线段（Directed Segment）：它是一个具体的几何对象，表示从一个起点到一个终点的线段，并且明确指出了方向（从起点到终点）。
@@ -1466,9 +1469,82 @@ def screen_draw_vector(vector_or_vector_list,start_point):
 
 def screen_draw_directed_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
     #把direction_vector获取出来,通过set_norm来改变长度(细分程度),然后平移direction_vector,收尾相接,得到一条渐变线
-    #1部分画虚线 ;2部分画实线
+    #1部分画虚线 ;2部分画实线 . . . .
     #从直线末端倒着画?如何取到直线末端?
-    #
+
+def _draw_dotted_segment_line(spacing, seg_line):
+    """
+    绘制均匀分布的虚线段（至少需要3段才能形成虚线）
+    :param spacing: 每段虚线的目标间距
+    :param seg_line: 输入线段信息
+    """
+    # 工具类实例化
+    tem = Tools2D()
+
+    # 获取线段信息
+    seg_line = tem.Segmentline_get_info(seg_line)
+    if not seg_line:
+        raise ValueError(f"没有找到线段: {seg_line}")
+
+    # 提取端点
+    point_A, point_B = seg_line['location']
+    x1, y1 = point_A
+    x2, y2 = point_B
+
+    # 转换为直线信息
+    line = tem.Segmentline_to_line(seg_line, temp=True)
+    a = line.get('a', 1)  # 获取直线参数a
+    k = line.get('k', 0)  # 获取斜率k，默认值为0（水平线）
+
+    # 计算线段总长度
+    total_length = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+
+    # 特殊处理垂直线的dx和dy
+    if a == 0:  # 垂直线情况
+        dx = 0
+        dy = spacing * (1 if y2 > y1 else -1)  # 根据方向调整符号
+    else:  # 非垂直线情况
+        dx = spacing / math.sqrt(1 + k ** 2)  # 水平方向增量
+        dy = k * dx  # 垂直方向增量
+        # 根据线段方向调整dx的符号
+        if x2 < x1:
+            dx = -dx
+            dy = -dy
+
+    # 计算虚线段数和余数
+    num_segments = int(total_length // spacing)  # 整数段数
+    remainder = total_length % spacing  # 剩余长度（余数）
+
+    # 如果虚线段数不足3段，直接绘制整条线段
+    if num_segments < 3:
+        tem.Segmentline_drop([x1, y1], [x2, y2])
+        return tem.get_Segmentline_dic()
+
+    # 如果余数存在，将其均摊到每段线段中
+    adjusted_spacing = spacing + (remainder / num_segments)
+
+    # 根据调整后的间距重新计算dx和dy
+    if a == 0:  # 垂直线情况
+        dx = 0
+        dy = adjusted_spacing * (1 if y2 > y1 else -1)
+    else:
+        dx = adjusted_spacing / math.sqrt(1 + k ** 2)
+        dy = k * dx
+        if x2 < x1:
+            dx = -dx
+            dy = -dy
+
+    # 循环绘制虚线段
+    for i in range(num_segments):
+        if i % 2 == 0:  # 偶数段绘制虚线（1:1比例，间隔为adjusted_spacing）
+            start_x = x1 + i * dx
+            start_y = y1 + i * dy
+            end_x = start_x + dx
+            end_y = start_y + dy
+            tem.Segmentline_drop([start_x, start_y], [end_x, end_y])
+
+    return tem.get_Segmentline_dic()
+
 
 def screen_draw_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
     screen_info=screen_get_info()
