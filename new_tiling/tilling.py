@@ -52,12 +52,12 @@ def get_girds_interaction(girds_dict):
         if vector_A not in interaction_dict:
             interaction_dict[vector_A] = {}
             # TODO 可以修改不用重新转换格式,而是一次性生成
-        for t_in, vector_B in enumerate(vectors_list[t_out + 1:]):  # 循环向量列表 切掉当前项
+        for t_in, vector_B in enumerate(vectors_list[t_out + 1:],start = t_out + 1):  # 循环向量列表 切掉当前项
             # {(vectorx,y):{}}
             if vector_B not in interaction_dict:
                 interaction_dict[vector_B] = {}
             for number_A, line_detail_A in lines_dict_list[t_out].items():
-                for number_B, line_detail_B in lines_dict_list[(t_out + 1) + t_in].items():
+                for number_B, line_detail_B in lines_dict_list[t_in].items():
                     interaction_point = tools.intersection_2line(line_detail_A, line_detail_B)
 
                     if interaction_point is None: continue
@@ -155,6 +155,33 @@ def splice_tilling(tilling_info_a, tilling_info_b, positive_direction):
     # TODO 在gird上面行走 例:一个交点是两条直线相交形成的,那么有4中行走方向(A正,A负,B正,B负)
     print()
 
+def is_able_splice(inter_info_a, inter_info_b):
+    """
+    判断能否成功拼接
+    返回这个tilling共线的[A共线的边,B共线的边]
+    """
+    #inter_info 示例: [{'vector': (0, 25), 'num': 0}, {'vector': (-24, 7), 'num': 1}]
+
+    collinear = {}
+    different = {}
+
+    for info_a in inter_info_a:
+        if info_a in inter_info_b:
+            collinear = info_a
+            inter_info_a.remove(info_a)
+            inter_info_b.remove(info_a)
+            continue
+
+    if not collinear:
+        return False
+
+    #TODO 这里需要求两条线之间的向量A-B 是否Pen_vector方向相同
+    #条件: A,B交点信息,至少有一项是重合的-->也就是说在gird上 至少在一个方向上共线
+    #重合的边 就是生成tilling共线的边
+    #如果是朝正方向移动的那么就是 A的正 对应 B的负 如果是朝负方向移动 就是A-对B+
+
+
+
 gird_dict = {
     (0, 25.519524250561197): {0: {'str': 'y=315.0', 'k': 0, 'b': 315.0}, 1: {'str': 'y=465.0', 'k': 0, 'b': 465.0},
                               -1: {'str': 'y=165.0', 'k': 0, 'b': 165.0}}, (-24.27050983124842, 7.885966681787004): {
@@ -175,7 +202,6 @@ gird_dict = {
         -1: {'str': 'y=-3.08x+1094.2', 'k': -3.0776835371752562, 'b': 1094.2042379076304}}}
 origin_vectors = list(gird_dict.keys())
 # back = get_girds_interaction(gird_dict)
-# print(back)
 back = {(389.10186207991956, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
                                       {'vector': (-24.27050983124842, 7.885966681787004), 'num': 0}],
         (231.38252844417948, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
@@ -356,4 +382,9 @@ back = {(389.10186207991956, 315.0): [{'vector': (0, 25.519524250561197), 'num':
                                                   {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
         (241.29798188103226, 351.5654115187642): [{'vector': (14.999999999999996, -20.645728807067602), 'num': -1},
                                                   {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}]}
-print(get_tilling_information(origin_vectors, [(0, 25.519524250561197), (-24.27050983124842, 7.885966681787004)]))
+
+print("get_girds_interaction交点信息:",back) #交点信息
+
+searched_vector= [(0, 25.519524250561197), (-24.27050983124842, 7.885966681787004)]
+tilling_info = get_tilling_information(origin_vectors,searched_vector)
+print(f"tilling信息:\nv_origin:{origin_vectors}\n查询vectors:\n{searched_vector})\n查询结果:\n{tilling_info}")
