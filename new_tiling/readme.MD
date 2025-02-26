@@ -14,6 +14,13 @@ Kurt Bruckner’s view on the Penrose tiling
 https://link.springer.com/article/10.1007/s11224-016-0790-1?fromPaywallRec=true
 
 备忘录:
-FIXME interaction 部分在偶数部分出现问题
 
-在gird绘制中 应该测试以下 同时绘制两个网格的效果
+TODO 应该测试下 Tilling 同时绘制两个网格的效果
+
+TODO 调整gird 返回的 数据类型
+
+效果参考:
+
+作者主页:
+https://www.instagram.com/p/CFe4yYBnuHS/
+![节点风格.png](picture%2F%E8%8A%82%E7%82%B9%E9%A3%8E%E6%A0%BC.png)
