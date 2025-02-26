@@ -346,7 +346,7 @@ class Tools2D:
 
         if drop:#返回新的直线对象
             if 'directed' in detail:
-                return self.directed_line_drop(detail['location_point'],detail['direction_vector'])
+                return self.line_directed_drop(detail['location_point'], detail['direction_vector'])
             if k:
                 return self.line_drop(k=detail.get('k'), b=detail['b'], a=detail.get('a', 1))
 
@@ -422,7 +422,7 @@ class Tools2D:
         if a == 0 and k == 0:
             raise ValueError("a和k不能同时为0，请检查输入")
         if a == 0:
-            line_str = f"x={round(b / -k / -1, 2)}"
+            line_str = f"x={round(b / -k, 2)}"
             detail_dic['str'] = line_str
             detail_dic['b'] = b / -k #0y=kx+b b/-k=x
             detail_dic['k'] = -1
@@ -481,9 +481,9 @@ class Tools2D:
         line:可以接受 letter 或者 dict
         x_range,y_range:如果不提供默认使用屏幕尺寸
         """
-        def xrange_to_Segline(range):
-            range_min = range[0]
-            range_max = range[1]
+        def xrange_to_Segline(in_range):
+            range_min = in_range[0]
+            range_max = in_range[1]
             back = self.Segmentline_drop(
                 Apoint=[range_min, self.line_solve(line, x=range_min)],
                 Bpoint=[range_max, self.line_solve(line, x=range_max)],
@@ -543,6 +543,7 @@ class Tools2D:
         if x_range is not None:
             x_min, x_max = sorted([x_range[0], x_range[1]])
             if x_min==x_max: return False #上文已经判断过垂直线的情况，如果出现x取值范围是一个点，那么不可能有解
+
         if y_range is not None:
             y_min, y_max = sorted([y_range[0], y_range[1]])
             y_min_to_x=self.line_solve(line,y=y_min)
@@ -907,6 +908,8 @@ class Tools2D:
         """
         x = None
         y = None
+        k = None
+        b = None
         if isinstance(Aline_letter_or_kba_dic, str):
             detail_dicA = self.line_dic[Aline_letter_or_kba_dic]
         else:
@@ -920,18 +923,19 @@ class Tools2D:
         k_B = detail_dicB['k']
         b_B = detail_dicB['b']
         if 'a' in detail_dicA:
-            x = b_A / k_A
-        if 'a' in detail_dicB:
-            if x is not None:
+            if 'a' in detail_dicB:
                 return None
-            x = b_B / k_B
-        # y1=k_A*x+b_A
-        # y2=k_B*x+b_B
-        if k_A == k_B:
+            x = detail_dicA['b']  # 直接取b的值，而非b/k
+            y = k_B * x + b_B
+        elif 'a' in detail_dicB:
+            x = detail_dicB['b']
+            y = k_A * x + b_A
+        elif k_A == k_B:
             return None
-        if x is None:
+        else:
             x = (b_B - b_A) / (k_A - k_B)
-        y = k_A * x + b_A
+            y = k_A * x + b_A
+
         return [x, y]
 
     def Segmentline_shadow_on_axis(self, Chain_or_2pointxy):
@@ -1071,11 +1075,9 @@ class Tools2D:
         raise ValueError(f'缺少必要参数: location_point={location_point}, '
                          f'direction_vector={direction_vector},'
                          f' line_chain_or_dic={line_chain_or_dic}')
-    def line_to_directed_line(self,location_point,line_chain_or_dic):
 
-        return self.directed_line_drop(location_point=location_point,line_chain_or_dic=line_chain_or_dic)
-
-
+    def line_to_directed_line(self,line_chain_or_dic,location_point):
+        return self.directed_line_drop(location_point=location_point, line_chain_or_dic=line_chain_or_dic)
 
     # ////////////《面操作》////////////
     def surface_drop_by_chain(self, chain_of_point, floor=0, color=py5.color(200, 200, 20, 255), fill=False, stroke=None,
@@ -1671,12 +1673,12 @@ def _dotted_segment_line(seg_line_get_info,spacing,color,stroke_weight,floor=0):
     return tem.get_Segmentline_dic()
 
 @time_logger
-def screen_draw_lines(linedic,color=py5.color(10,10,0,255),stroke_weight=3):
+def screen_draw_lines(lines_dic, color=py5.color(10, 10, 0, 255), stroke_weight=3):
     screen_info=screen_get_info()
     x_range,y_range=screen_info['x_range'],screen_info['y_range']
     tem=Tools2D()
 
-    for key,de_dic in linedic.items():
+    for key,de_dic in lines_dic.items():
         #TODO 这里计算量很大，导致单进程效率很低，需要进行多进程处理
         tem.line_to_Segmentline(de_dic,x_range=x_range,y_range=y_range)
     py5.stroke(color)
