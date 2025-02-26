@@ -43,6 +43,7 @@ def create_gird(sides, distance=0, zoom=100, center=(100,100), num_of_line=50):
                           for i in range(len(the_lines_direction))]
 
     for times,i in enumerate(vectors_origin_pen):
+        #TODO 这里不要直接平移直线,应该用新函数平移[有向直线]
         origin_lines=tools.vector_to_line(i, center)# 把vectors_origin_pen换成直线,直线要经过center
 
         #按照vector的方向,改变vector的模长-->获得平移向量distance_vector
