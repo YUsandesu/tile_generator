@@ -495,8 +495,8 @@ class Tools2D:
 
         #如果提供的不是字典，那么在line_dic中查找
         if not isinstance(line,dict):
-            if not line in self.line_dic:
-                raise ValueError(f'没有找到给定line：{line}')
+            if line not in self.line_dic:
+                raise ValueError(f'{self.line_dic}没有找到给定line：{line}')
             line = self.line_dic[line]
 
         # 如果没有提供取值范围
@@ -533,7 +533,7 @@ class Tools2D:
                     return self.Segmentline_drop(Apoint=[value_x, y_range[0]],
                                                  Bpoint=[value_x, y_range[1]],
                                                  **inputvalue)
-                return False  # 不在范围中返回False
+                return None  # 不在范围中返回False
             else:
                 return self.Segmentline_drop(Apoint=[value_x, y_range[0]],
                                              Bpoint=[value_x, y_range[1]],
@@ -542,7 +542,7 @@ class Tools2D:
         #整理取值范围，返回x_min,x_max,y_to_x_min,y_to_x_max,y_min,y_max
         if x_range is not None:
             x_min, x_max = sorted([x_range[0], x_range[1]])
-            if x_min==x_max: return False #上文已经判断过垂直线的情况，如果出现x取值范围是一个点，那么不可能有解
+            if x_min==x_max: return None #上文已经判断过垂直线的情况，如果出现x取值范围是一个点，那么不可能有解
 
         if y_range is not None:
             y_min, y_max = sorted([y_range[0], y_range[1]])
@@ -552,7 +552,7 @@ class Tools2D:
                 # 处理水平线
                 y_value = self.line_solve(line, x=0)  #获取水平线的固定 y 值
                 if not (y_min <= y_value <= y_max):#校验 y 值是否在范围内
-                    return False  # y 值超出允许范围
+                    return None  # y 值超出允许范围
                 # 返回水平线段
                 return self.Segmentline_drop(
                     Apoint=[x_min, y_value],
@@ -562,7 +562,7 @@ class Tools2D:
             elif y_min_to_x is None or y_max_to_x is None:
                 raise ValueError(f"取值{y_min_to_x,y_max_to_x}只出现一个是无穷大，未知错误")
             y_to_x_min,y_to_x_max=sorted([y_min_to_x,y_max_to_x])
-            if y_to_x_min==y_to_x_max:return False #未知错误，此时是垂直线，因为y取任何值时x值都是相同的，但是上文已经判断过a=0的情况
+            if y_to_x_min==y_to_x_max:return None #未知错误，此时是垂直线，因为y取任何值时x值都是相同的，但是上文已经判断过a=0的情况
 
         if x_range is None:
             #此时y_range必然存在。不存在赋值前引用
@@ -577,8 +577,8 @@ class Tools2D:
             #把y也换算成x的范围
             y_to_x_range = [y_to_x_min, y_to_x_max]
             new_range_x = self.get_inter_range(x_range, y_to_x_range)#调用get_inter_range找到交集
-            if new_range_x is None:return False
-            if new_range_x[0] == new_range_x[1]:return False
+            if new_range_x is None:return None
+            if new_range_x[0] == new_range_x[1]:return None
             return xrange_to_Segline(new_range_x)
 
     def directed_line_to_line(self,line_letter_or_detail_dic,temp=True):
@@ -1508,7 +1508,6 @@ def screen_draw_vector(vector_or_vector_list,start_point):
         tem.Segmentline_drop(i[0], i[1])
     screen_draw_SegmentLine(tem.get_Segmentline_dic(),floor=0)
 
-
 def draw_directed_line(line_detail_dict, color=py5.color(10, 10, 0, 255), stroke_weight=3,floor=0,minimum=50):
     #把direction_vector获取出来,通过set_norm来改变长度(细分程度),然后平移direction_vector,收尾相接,得到一条渐变线
     #1部分画虚线 ;2部分画实线 . . . .
@@ -1524,6 +1523,8 @@ def draw_directed_line(line_detail_dict, color=py5.color(10, 10, 0, 255), stroke
 
     line_detail = tem.directed_line_to_line(line_detail_dict, temp=True)
     segment_line = tem.line_to_Segmentline(line_detail,x_range=x_range,y_range=y_range)
+    if not segment_line:
+        return
     segment_line_locations=tem.Segmentline_get_info(segment_line)['location']
     tem.Segmentline_remove_by_chain(segment_line)
 
@@ -1541,6 +1542,11 @@ def draw_directed_line(line_detail_dict, color=py5.color(10, 10, 0, 255), stroke
         positive_point, negative_point = A_point, B_point
     else:
         positive_point, negative_point = B_point, A_point
+
+    #画个原点
+    py5.stroke(color)
+    py5.stroke_weight(stroke_weight+4)
+    py5.point(*line_detail_dict['location_point'])
 
     #正方向线段处理
     positive_segment_line = tem.Segmentline_drop(line_detail_dict['location_point'], positive_point, **input_value)
@@ -1692,6 +1698,12 @@ def screen_draw_lines(lines_dic, color=py5.color(10, 10, 0, 255), stroke_weight=
         the_line=a_point+b_point
         line_to_draw.append(the_line)
     py5.lines(np.array(line_to_draw, dtype=np.float32))
+def screen_draw_directed_line(directed_line_dict_or_list,color,stroke_weight=3):
+    if isinstance(directed_line_dict_or_list,dict):
+        lines = list(directed_line_dict_or_list.values())
+    else:lines = directed_line_dict_or_list
+    for line in lines:
+        draw_directed_line(line,color=color,stroke_weight=stroke_weight)
 
 def screen_draw_points( pointdic,size=5,color=py5.color(255,0,0,255),fill=py5.color(0,0,0,255) ):
     """
