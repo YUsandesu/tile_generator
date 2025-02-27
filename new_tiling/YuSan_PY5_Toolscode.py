@@ -491,6 +491,7 @@ class Tools2D:
             )
             return back
 
+        y_in_x_min,y_in_x_max=None,None
         inputvalue = {'floor': floor, 'color': color, 'stroke_weight': stroke_weight, 'visible': visible}
 
         #判断输入是id
@@ -562,30 +563,45 @@ class Tools2D:
 
             if x_solved_by_y_min is None:
                 #水平线
-                value_y = y_min
+                y_in_x_min,y_in_x_max = y_min,y_min
             elif x_solved_by_y_max is None:
                 # if x_solved_by_y_min is None:
                 #     raise ValueError(f'取得两个都是任意值,不太可能出现这种情况,line:{line},y_range:{y_range}')
 
                 # 水平线
-                value_y = y_max
+                y_in_x_min,y_in_x_max = y_max,y_max
             else:
 
                 if x_range:
+
                     queue= sorted(x_range+[x_solved_by_y_min, x_solved_by_y_max])
+
+                    #如果刚好排到计算过的,就直接使用缩小计算量
                     x_min=queue[0]
-                    x_max=queue[-1]
+                    if x_min == x_solved_by_y_min:
+                       y_in_x_min = y_min
+                    elif x_min == x_solved_by_y_max:
+                       y_in_x_min = y_max
+                    x_max = queue[-1]
+                    if x_max == x_solved_by_y_min:
+                       y_in_x_max = y_min
+                    elif x_max == x_solved_by_y_max:
+                       y_in_x_max = y_max
+
                 else:
                     x_min, x_max = sorted([x_solved_by_y_min, x_solved_by_y_max])
                     x_range = [x_min, x_max]
 
 
         if x_range:
-            if value_y:
-                return self.Segmentline_drop([x_min, value_y], [x_max, value_y])
+            if not y_in_x_min:
+                y_in_x_min= self.line_solve(line,x=x_min)
+            if not y_in_x_max:
+                y_in_x_max= self.line_solve(line,x=x_max)
+            self.Segmentline_drop([x_min, y_in_x_min], [x_max, y_in_x_max])
             return xrange_to_Segline(x_range)
-        else:
-            raise ValueError("求解失败")
+
+        raise ValueError("求解失败")
 
 
     def directed_line_to_line(self,line_letter_or_detail_dic,temp=True):
