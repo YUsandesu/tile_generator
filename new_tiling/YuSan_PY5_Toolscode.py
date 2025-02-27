@@ -917,6 +917,8 @@ class Tools2D:
         y = None
         k = None
         b = None
+
+        #判断是id还是dict
         if isinstance(Aline_letter_or_kba_dic, str):
             detail_dicA = self.line_dic[Aline_letter_or_kba_dic]
         else:
@@ -925,10 +927,18 @@ class Tools2D:
             detail_dicB = self.line_dic[Bline_letter_or_kba_dic]
         else:
             detail_dicB = Bline_letter_or_kba_dic
+
+        #判断是否为有向直线,转化为函数
+        if 'directed' in detail_dicA and detail_dicA['directed'] is True:
+            detail_dicA = self.directed_line_to_line(detail_dicA,temp=True)
+        if 'directed' in detail_dicB and detail_dicB['directed'] is True:
+            detail_dicB = self.directed_line_to_line(detail_dicB,temp=True)
+
         k_A = detail_dicA['k']
         b_A = detail_dicA['b']
         k_B = detail_dicB['k']
         b_B = detail_dicB['b']
+
         if 'a' in detail_dicA:
             if 'a' in detail_dicB:
                 return None
