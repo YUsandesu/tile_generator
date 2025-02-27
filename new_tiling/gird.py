@@ -2,7 +2,7 @@ import py5_tools
 py5_tools.add_jars('../jars')
 from YuSan_PY5_Toolscode import *
 from the_control import *
-import tilling
+# import tilling
 color=[py5.color(255,0,0),
            py5.color(0,255,0),
            py5.color(0,0,255),
@@ -77,6 +77,10 @@ def create_gird(sides, shifted_distance=0, gap=100, center=(100, 100), num_of_li
             back_list[t]['girds'][the_time+1] = line_positive_detail #命名方式1,2,3...
             back_list[t]['girds'][-(the_time+1)] = line_negative_detail #-1,-2,-3...
 
+    print(f'\nback_list:\n')
+    for t,i in enumerate(back_list):
+        print(f'\n{t}:\n{i}')
+    print(back_list)
     return back_list
 
 
