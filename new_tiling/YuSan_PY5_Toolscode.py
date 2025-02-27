@@ -487,12 +487,15 @@ class Tools2D:
             back = self.Segmentline_drop(
                 Apoint=[range_min, self.line_solve(line, x=range_min)],
                 Bpoint=[range_max, self.line_solve(line, x=range_max)],
-                **inputvalue
+                **input_value
             )
             return back
 
-        y_in_x_min,y_in_x_max=None,None
-        inputvalue = {'floor': floor, 'color': color, 'stroke_weight': stroke_weight, 'visible': visible}
+        y_in_x_min, y_in_x_max = None, None
+        x_min, x_max = None, None
+        y_min, y_max = None, None
+
+        input_value = {'floor': floor, 'color': color, 'stroke_weight': stroke_weight, 'visible': visible}
 
         #判断输入是id
         if not isinstance(line,dict):
@@ -503,8 +506,10 @@ class Tools2D:
         #排序输入的范围,防止错误
         if x_range is not None:
             x_range = sorted([x_range[0], x_range[1]])
+            x_min, x_max = x_range
         if y_range is not None:
             y_range = sorted([y_range[0], y_range[1]])
+            y_min, y_max = y_range
 
         # 如果没有提供任何取值范围
         if x_range is None and y_range is None:
@@ -523,8 +528,6 @@ class Tools2D:
             # 没有提供y_range取值范围,但可以使用屏幕范围的y_range缩小计算量
             y_range = self.screeninfo['yrange']
 
-        x_min, x_max = x_range
-        y_min, y_max = y_range
         value_k = line['k']
         value_b = line['b']
 
@@ -545,14 +548,17 @@ class Tools2D:
                 if x_min <= value_x <= x_max:  # 如果提供了x范围,垂直线要在x的取值范围中
                     return self.Segmentline_drop(Apoint=[value_x, y_range[0]],
                                                  Bpoint=[value_x, y_range[1]],
-                                                 **inputvalue)
+                                                 **input_value)
+                # warnings.warn(f'垂直线{line}不在x取值范围{x_range}')
                 return None  # 不在范围中返回False
             else:
                 return self.Segmentline_drop(Apoint=[value_x, y_range[0]],
                                              Bpoint=[value_x, y_range[1]],
-                                             **inputvalue)
+                                             **input_value)
         elif x_min==x_max:
-            return None  # 上文已经判断过垂直线的情况，如果出现x取值范围是一个点，那么不可能有解
+            # 上文已经判断过垂直线的情况
+            warnings.warn(f'line:{line} x取值范围{x_range}是一个点')
+            return None
 
         #常规情况处理
         value_y = None
@@ -567,37 +573,42 @@ class Tools2D:
             elif x_solved_by_y_max is None:
                 # if x_solved_by_y_min is None:
                 #     raise ValueError(f'取得两个都是任意值,不太可能出现这种情况,line:{line},y_range:{y_range}')
-
                 # 水平线
                 y_in_x_min,y_in_x_max = y_max,y_max
             else:
-
+                x_min_solved_by_y, x_max_solved_by_y = sorted([x_solved_by_y_min, x_solved_by_y_max])
                 if x_range:
-
-                    queue= sorted(x_range+[x_solved_by_y_min, x_solved_by_y_max])
-
-                    #如果刚好排到计算过的,就直接使用缩小计算量
-                    x_min=queue[0]
-                    if x_min == x_solved_by_y_min:
-                       y_in_x_min = y_min
-                    elif x_min == x_solved_by_y_max:
-                       y_in_x_min = y_max
-                    x_max = queue[-1]
-                    if x_max == x_solved_by_y_min:
-                       y_in_x_max = y_min
-                    elif x_max == x_solved_by_y_max:
-                       y_in_x_max = y_max
-
+                    if x_min<x_min_solved_by_y<x_max:
+                        x_min = x_min_solved_by_y
+                    elif x_min<x_max_solved_by_y<x_max:
+                        x_max = x_max_solved_by_y
+                    elif x_max_solved_by_y<=x_min or x_min_solved_by_y>=x_max:
+                        # print('超出范围')
+                        return None
                 else:
-                    x_min, x_max = sorted([x_solved_by_y_min, x_solved_by_y_max])
-                    x_range = [x_min, x_max]
+                    x_min, x_max = x_min_solved_by_y,x_max_solved_by_y
 
+                x_range = [x_min, x_max]
+
+                # 如果刚好是计算过的,直接使用缩小计算量
+                # 此时不可能出现垂直线,因为上文已经判断过
+                # 所以不会出现x_solved_by_y_min=x_solved_by_y_max
+                if x_min == x_solved_by_y_min:
+                    y_in_x_min = y_min
+                elif x_min == x_solved_by_y_max:
+                    y_in_x_min = y_max
+                if x_max == x_solved_by_y_min:
+                    y_in_x_max = y_min
+                elif x_max == x_solved_by_y_max:
+                    y_in_x_max = y_max
 
         if x_range:
+            #上文已经重排了有y_range的情况
             if not y_in_x_min:
                 y_in_x_min= self.line_solve(line,x=x_min)
             if not y_in_x_max:
                 y_in_x_max= self.line_solve(line,x=x_max)
+            #这里求解不回None,因为输入x,返回任意值 说明刚好落在垂直线上,但是上文已经判断过a的情况
             self.Segmentline_drop([x_min, y_in_x_min], [x_max, y_in_x_max])
             return xrange_to_Segline(x_range)
 
@@ -1542,6 +1553,9 @@ def screen_draw_vector(vector_or_vector_list,start_point):
     screen_draw_SegmentLine(tem.get_Segmentline_dic(),floor=0)
 
 def draw_directed_line(line_detail_dict, color=py5.color(10, 10, 0, 255), stroke_weight=3,floor=0,minimum=50):
+    """
+    返回值:Bool 成功或失败
+    """
     #把direction_vector获取出来,通过set_norm来改变长度(细分程度),然后平移direction_vector,收尾相接,得到一条渐变线
     #1部分画虚线 ;2部分画实线 . . . .
     #从直线末端倒着画?如何取到直线末端?
@@ -1557,7 +1571,7 @@ def draw_directed_line(line_detail_dict, color=py5.color(10, 10, 0, 255), stroke
     line_detail = tem.directed_line_to_line(line_detail_dict, temp=True)
     segment_line = tem.line_to_Segmentline(line_detail,x_range=x_range,y_range=y_range)
     if not segment_line:
-        return
+        return False
     segment_line_locations=tem.Segmentline_get_info(segment_line)['location']
     tem.Segmentline_remove_by_chain(segment_line)
 
@@ -1594,6 +1608,7 @@ def draw_directed_line(line_detail_dict, color=py5.color(10, 10, 0, 255), stroke
     negative_segment_line_dict = tem.Segmentline_get_info(negative_segment_line)
     dotted_negative_segment_line_dicts = _dotted_segment_line(negative_segment_line_dict,spacing=10,**input_value)
     screen_draw(Seglinedic=dotted_negative_segment_line_dicts)
+    return True
 
 def _color_transition_segment_line(seg_line_get_info, color, stroke_weight, floor=0, minimum=0, sampling=5):
     """
@@ -1731,12 +1746,19 @@ def screen_draw_lines(lines_dic, color=py5.color(10, 10, 0, 255), stroke_weight=
         the_line=a_point+b_point
         line_to_draw.append(the_line)
     py5.lines(np.array(line_to_draw, dtype=np.float32))
+
 def screen_draw_directed_line(directed_line_dict_or_list,color,stroke_weight=3):
+    skip_times=0
     if isinstance(directed_line_dict_or_list,dict):
         lines = list(directed_line_dict_or_list.values())
     else:lines = directed_line_dict_or_list
+    Line_num = len(lines)
     for line in lines:
-        draw_directed_line(line,color=color,stroke_weight=stroke_weight)
+        if draw_directed_line(line,color=color,stroke_weight=stroke_weight) is False:
+            skip_times=skip_times+1
+    # if skip_times !=0:
+    #     print(f'本次跳过了{skip_times}条线,绘制:{Line_num-skip_times}/{Line_num}条')
+
 
 def screen_draw_points( pointdic,size=5,color=py5.color(255,0,0,255),fill=py5.color(0,0,0,255) ):
     """
