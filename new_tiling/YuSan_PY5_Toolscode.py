@@ -481,16 +481,6 @@ class Tools2D:
         line:可以接受 letter 或者 dict
         x_range,y_range:如果不提供默认使用屏幕尺寸
         """
-        def xrange_to_Segline(in_range):
-            range_min = in_range[0]
-            range_max = in_range[1]
-            back = self.Segmentline_drop(
-                Apoint=[range_min, self.line_solve(line, x=range_min)],
-                Bpoint=[range_max, self.line_solve(line, x=range_max)],
-                **input_value
-            )
-            return back
-
         y_in_x_min, y_in_x_max = None, None
         x_min, x_max = None, None
         y_min, y_max = None, None
@@ -538,22 +528,22 @@ class Tools2D:
                 raise ValueError(f'a应当仅为0或1，检查line：{line}')
             if y_range is None:
                 raise ValueError(f'垂直线{line}没有y_range无法求解成线段')
-            if y_range[0] == y_range[1]:
+            if y_min == y_max:
                 raise ValueError(f'垂直线{line}取值范围为一个点，无法生成线段')
 
-            # 0=-x+b 求解x的坐标
+            # 0=kx+b 求解x的坐标
             value_x = value_b / -value_k
 
             if x_range is not None:
                 if x_min <= value_x <= x_max:  # 如果提供了x范围,垂直线要在x的取值范围中
-                    return self.Segmentline_drop(Apoint=[value_x, y_range[0]],
-                                                 Bpoint=[value_x, y_range[1]],
+                    return self.Segmentline_drop(Apoint=[value_x, y_min],
+                                                 Bpoint=[value_x, y_max],
                                                  **input_value)
                 # warnings.warn(f'垂直线{line}不在x取值范围{x_range}')
-                return None  # 不在范围中返回False
+                return None  # 不在范围中返回None
             else:
-                return self.Segmentline_drop(Apoint=[value_x, y_range[0]],
-                                             Bpoint=[value_x, y_range[1]],
+                return self.Segmentline_drop(Apoint=[value_x, y_min],
+                                             Bpoint=[value_x, y_max],
                                              **input_value)
         elif x_min==x_max:
             # 上文已经判断过垂直线的情况
@@ -576,43 +566,40 @@ class Tools2D:
                 # 水平线
                 y_in_x_min,y_in_x_max = y_max,y_max
             else:
+                #排序大小
                 x_min_solved_by_y, x_max_solved_by_y = sorted([x_solved_by_y_min, x_solved_by_y_max])
                 if x_range:
-                    if x_min<x_min_solved_by_y<x_max:
-                        x_min = x_min_solved_by_y
-                    elif x_min<x_max_solved_by_y<x_max:
-                        x_max = x_max_solved_by_y
-                    elif x_max_solved_by_y<=x_min or x_min_solved_by_y>=x_max:
+                    if x_max_solved_by_y<=x_min or x_min_solved_by_y>=x_max:
                         # print('超出范围')
                         return None
+                    if x_min<x_min_solved_by_y<x_max:
+                        x_min = x_min_solved_by_y
+                    if x_min<x_max_solved_by_y<x_max:
+                        x_max = x_max_solved_by_y
+                    # 如果是计算过的,直接使用缩小计算量
+                    # 此时不可能出现垂直线,因为上文已经判断过
+                    # 所以不会出现x_solved_by_y_min=x_solved_by_y_max
+                    if x_min == x_solved_by_y_min:
+                        y_in_x_min = y_min
+                    elif x_min == x_solved_by_y_max:
+                        y_in_x_min = y_max
+                    if x_max == x_solved_by_y_min:
+                        y_in_x_max = y_min
+                    elif x_max == x_solved_by_y_max:
+                        y_in_x_max = y_max
                 else:
                     x_min, x_max = x_min_solved_by_y,x_max_solved_by_y
+                # x_range = [x_min, x_max]
 
-                x_range = [x_min, x_max]
+        # if x_range:
+        #上文已经重排了有y_range的情况
+        if not y_in_x_min:
+            y_in_x_min= self.line_solve(line,x=x_min)
+        if not y_in_x_max:
+            y_in_x_max= self.line_solve(line,x=x_max)
+        #这里求解不回None,因为输入x,返回任意值 说明刚好落在垂直线上,但是上文已经判断过a的情况
 
-                # 如果刚好是计算过的,直接使用缩小计算量
-                # 此时不可能出现垂直线,因为上文已经判断过
-                # 所以不会出现x_solved_by_y_min=x_solved_by_y_max
-                if x_min == x_solved_by_y_min:
-                    y_in_x_min = y_min
-                elif x_min == x_solved_by_y_max:
-                    y_in_x_min = y_max
-                if x_max == x_solved_by_y_min:
-                    y_in_x_max = y_min
-                elif x_max == x_solved_by_y_max:
-                    y_in_x_max = y_max
-
-        if x_range:
-            #上文已经重排了有y_range的情况
-            if not y_in_x_min:
-                y_in_x_min= self.line_solve(line,x=x_min)
-            if not y_in_x_max:
-                y_in_x_max= self.line_solve(line,x=x_max)
-            #这里求解不回None,因为输入x,返回任意值 说明刚好落在垂直线上,但是上文已经判断过a的情况
-            self.Segmentline_drop([x_min, y_in_x_min], [x_max, y_in_x_max])
-            return xrange_to_Segline(x_range)
-
-        raise ValueError("求解失败")
+        return self.Segmentline_drop([x_min, y_in_x_min], [x_max, y_in_x_max])
 
 
     def directed_line_to_line(self,line_letter_or_detail_dic,temp=True):
