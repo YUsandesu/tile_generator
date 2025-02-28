@@ -80,6 +80,7 @@ def create_gird(sides, shifted_distance=0, gap=100, center=(100, 100), num_of_li
     print(f'\nback_list:\n')
     for t,i in enumerate(back_list):
         print(f'\n{t}:\n{i}')
+    print('完整输出:')
     print(back_list)
     return back_list
 
