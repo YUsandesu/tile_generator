@@ -576,23 +576,24 @@ class Tools2D:
                         x_min = x_min_solved_by_y
                     if x_min<x_max_solved_by_y<x_max:
                         x_max = x_max_solved_by_y
-                    # 如果是计算过的,直接使用缩小计算量
-                    # 此时不可能出现垂直线,因为上文已经判断过
-                    # 所以不会出现x_solved_by_y_min=x_solved_by_y_max
-                    if x_min == x_solved_by_y_min:
-                        y_in_x_min = y_min
-                    elif x_min == x_solved_by_y_max:
-                        y_in_x_min = y_max
-                    if x_max == x_solved_by_y_min:
-                        y_in_x_max = y_min
-                    elif x_max == x_solved_by_y_max:
-                        y_in_x_max = y_max
                 else:
                     x_min, x_max = x_min_solved_by_y,x_max_solved_by_y
                 # x_range = [x_min, x_max]
 
+                # 如果是计算过的,直接使用缩小计算量
+                # 此时不可能出现垂直线,因为上文已经判断过
+                # 所以不会出现x_solved_by_y_min=x_solved_by_y_max
+                if x_min == x_solved_by_y_min:
+                    y_in_x_min = y_min
+                elif x_min == x_solved_by_y_max:
+                    y_in_x_min = y_max
+                if x_max == x_solved_by_y_min:
+                    y_in_x_max = y_min
+                elif x_max == x_solved_by_y_max:
+                    y_in_x_max = y_max
+
+
         # if x_range:
-        #上文已经重排了有y_range的情况
         if not y_in_x_min:
             y_in_x_min= self.line_solve(line,x=x_min)
         if not y_in_x_max:
