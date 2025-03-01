@@ -42,7 +42,8 @@ class TILLING:
             self.girds_data = girds_data
         else:
             raise ValueError("缺少girds_data")
-        self.interaction_information={}
+        self.interaction_data_point_location={}
+        self.interaction_data_line_id={}
 
     def get_girds_interaction(self):
         """
@@ -50,63 +51,88 @@ class TILLING:
         输入值:((vector):{0:line_dict,1:xx,-1:xx},():{0:xx,1:xx,-1:xx})
         输出值:{ (p_x,p_y):[{v:v,n:n},{v_info}],[_x,_y]:[...],.. }
         """
-
         tools = Tools2D()
+        girds_list = [i['girds'] for i in self.girds_data]
 
-        girds_data = self.girds_data
+        interaction_data = {}  # 按坐标点聚合的交点信息
+        inter_point_data = {}  # 按线段维度聚合的交点信息（新结构）
 
-        girds_list = [i['girds'] for i in girds_data]
-
-        interaction_data = {}
-
-        for t, i in enumerate(girds_data):  # 创建空字典
-            girds_data[t]['interaction'] = {}
-        for t_out, out_gird in enumerate(girds_list[:-1]):  # 循环向量列表 切掉最后一项
-            for t_in, in_gird in enumerate(girds_list[t_out + 1:], start=t_out + 1):  # 循环向量列表 切掉当前项
+        for t_out, out_gird in enumerate(girds_list[:-1]):
+            for t_in, in_gird in enumerate(girds_list[t_out + 1:], start=t_out + 1):
                 for number_out, line_detail_out in out_gird.items():
                     for number_in, line_detail_in in in_gird.items():
                         interaction_point = tools.intersection_2line(line_detail_out, line_detail_in)
-                        if interaction_point is None: continue
+                        if interaction_point is None:
+                            continue
 
-                        if number_out not in girds_data[t_out]['interaction']:
-                            girds_data[t_out]['interaction'][number_out] = []
-                        if number_in not in girds_data[t_in]['interaction']:
-                            girds_data[t_in]['interaction'][number_in] = []
+                        # 新数据结构处理 (使用元组作为复合键)
+                        # 处理外层线段 (t_out, number_out)
+                        key_out = (t_out, number_out)
+                        if key_out not in inter_point_data:
+                            inter_point_data[key_out] = []
+                        inter_point_data[key_out].append(interaction_point)
 
-                        girds_data[t_out]['interaction'][number_out].append(interaction_point)
-                        girds_data[t_in]['interaction'][number_in].append(interaction_point)
+                        # 处理内层线段 (t_in, number_in)
+                        key_in = (t_in, number_in)
+                        if key_in not in inter_point_data:
+                            inter_point_data[key_in] = []
+                        inter_point_data[key_in].append(interaction_point)
 
-                        if tuple(interaction_point) not in interaction_data:
-                            interaction_data[tuple(interaction_point)] = []
-                        interaction_data[tuple(interaction_point)].append(
-                            {"gird_list_index": t_out, "num": number_out})
-                        interaction_data[tuple(interaction_point)].append(
-                            {"gird_list_index": t_in, "num": number_in})
+                        # 保留原坐标点维度聚合逻辑
+                        point_key = tuple(interaction_point)
+                        if point_key not in interaction_data:
+                            interaction_data[point_key] = []
+                        interaction_data[point_key].extend([
+                            (t_out,number_out),
+                            (t_in,number_in)
+                        ])
 
-        # 目前有两种 interaction一种是以点为key的inter_data 还有一种是以直线为key的 girds[t]['interaction']
-        self.interaction_information = interaction_data
-        self.girds_data = girds_data
+        self.interaction_data_line_id = inter_point_data
+        self.interaction_data_point_location = interaction_data
+        # interaction_data_point_location 结构示例
+        # {
+        #     (0, 0): [[x1, y1], [x2, y2], ...],  # gird_data[0]中girds键下0号线段的所有交点
+        #     (1, -1): [[x3, y3]],  # gird_data[1]中girds键下-1号线段的交点
+        #     (2, 1): [...]  # gird_data[2]中girds键下1号线段的交点
+        # }
 
     def sort_girds_interaction(self):
-        # think/先判断pen_origin_vector,是垂直的就按照y的顺序,分出朝上还是朝下即可
-        # 然后判断pen_origin_vector是指向哪里的
-        # 指向1象限是x自小到大排列,指向2象限是x自大到小排列
-        # 指向3象限是x自大到小排列,指向4象限是x自小到大排列
-
+        # 指向1象限是x自小到大排列(+,+)=+,指向2象限是x自大到小排列(-,+)=-
+        # 指向3象限是x自大到小排列(-,-)=-,指向4象限是x自小到大排列(+,-)=+
+        #y:         +                          +
+        #           -                          -
         # 综上
         # 只需要判断 pen_origin_vector 的x符号,为正就是从小到大,为负就是从大到小
         # 为0就判断y的符号,为正就是y从小到大,为负就是从大到小
 
-        girds_data = self.girds_data
+        inter_data = self.interaction_data_point_location
+        reverse_data={}
+        #line_id 例: (a,b) --> girds_data[a]['girds'][b]
+        for point,line_id_list in inter_data.items():
+            for line_id in line_id_list:
 
-        for each_gird_info in girds_data:
-            for line_num, line_info in each_gird_info['girds']:
-                zero = line_info['location_point']
-                direction = line_info['direction_vector']
-                index = line_num
-                points_list = each_gird_info['interaction'][index]
-                # TODO 求zero和point之间的向量 1.是否和direction相同决定正负 2.保存距离,作为字典的key
-                # 按照距离重新排序,从小到大(向量方向)
+                if not isinstance(line_id,tuple):
+                    line_id=tuple(line_id)#防止传入的是列表导致错误
+
+                if line_id not in reverse_data:
+                    reverse_data[line_id]=[]
+                reverse_data[line_id].append(point)
+
+        for line_id,points in reverse_data.items():
+            data_id,girds_id = line_id[0],line_id[1]
+            line=self.girds_data[data_id]['girds'][girds_id]
+            direction_vector = line['direction_vector']
+            x,y = direction_vector
+
+            points=np.array(points)
+            if not x==0:
+                sorted_indices = np.argsort(np.sign(x)*points[:, 0]) #根据x坐标
+            elif not y==0:
+                sorted_indices = np.argsort(np.sign(y)*points[:, 1])  # 根据x坐标
+            else:continue
+            sorted_points = points[sorted_indices].tolist()
+            reverse_data[line_id]=sorted_points
+        self.interaction_data_line_id = reverse_data
 
     def get_tilling_information(self,gird_origin_vectors, vectors):
         """
@@ -207,6 +233,16 @@ def is_able_splice(inter_info_a, inter_info_b):
     #如果是朝正方向移动的那么就是 A的正 对应 B的负 如果是朝负方向移动 就是A-对B+
 
 back_list= [{'origin_vector': [0, 25.519524250561197], 'pen_origin_vector': [-25.519524250561197, 0], 'shift_vector_based_distance': [0, 15], 'origin_directed_line': {'directed': True, 'location_point': [400.0, 315.0], 'direction_vector': [-25.519524250561197, 0]}, 'girds': {0: {'directed': True, 'location_point': [400.0, 315.0], 'direction_vector': [-25.519524250561197, 0]}, 1: {'directed': True, 'location_point': [400.0, 465.0], 'direction_vector': [-25.519524250561197, 0]}, -1: {'directed': True, 'location_point': [400.0, 165.0], 'direction_vector': [-25.519524250561197, 0]}}}, {'origin_vector': [-24.27050983124842, 7.885966681787004], 'pen_origin_vector': [-7.885966681787006, -24.27050983124842], 'shift_vector_based_distance': [-14.265847744427303, 4.635254915624212], 'origin_directed_line': {'directed': True, 'location_point': [385.7341522555727, 304.6352549156242], 'direction_vector': [-7.885966681787006, -24.27050983124842]}, 'girds': {0: {'directed': True, 'location_point': [385.7341522555727, 304.6352549156242], 'direction_vector': [-7.885966681787006, -24.27050983124842]}, 1: {'directed': True, 'location_point': [243.07567481129968, 350.9878040718663], 'direction_vector': [-7.885966681787006, -24.27050983124842]}, -1: {'directed': True, 'location_point': [528.3926296998458, 258.2827057593821], 'direction_vector': [-7.885966681787006, -24.27050983124842]}}}, {'origin_vector': [-15.000000000000002, -20.6457288070676], 'pen_origin_vector': [20.6457288070676, -15.000000000000004], 'shift_vector_based_distance': [-8.8167787843871, -12.13525491562421], 'origin_directed_line': {'directed': True, 'location_point': [391.1832212156129, 287.8647450843758], 'direction_vector': [20.6457288070676, -15.000000000000004]}, 'girds': {0: {'directed': True, 'location_point': [391.1832212156129, 287.8647450843758], 'direction_vector': [20.6457288070676, -15.000000000000004]}, 1: {'directed': True, 'location_point': [303.0154333717419, 166.51219592813368], 'direction_vector': [20.6457288070676, -15.000000000000004]}, -1: {'directed': True, 'location_point': [479.3510090594839, 409.2172942406179], 'direction_vector': [20.6457288070676, -15.000000000000004]}}}, {'origin_vector': [14.999999999999996, -20.645728807067602], 'pen_origin_vector': [20.645728807067602, 14.999999999999995], 'shift_vector_based_distance': [8.816778784387097, -12.135254915624213], 'origin_directed_line': {'directed': True, 'location_point': [408.8167787843871, 287.8647450843758], 'direction_vector': [20.645728807067602, 14.999999999999995]}, 'girds': {0: {'directed': True, 'location_point': [408.8167787843871, 287.8647450843758], 'direction_vector': [20.645728807067602, 14.999999999999995]}, 1: {'directed': True, 'location_point': [496.9845666282581, 166.51219592813365], 'direction_vector': [20.645728807067602, 14.999999999999995]}, -1: {'directed': True, 'location_point': [320.6489909405161, 409.2172942406179], 'direction_vector': [20.645728807067602, 14.999999999999995]}}}, {'origin_vector': [24.270509831248425, 7.885966681786999], 'pen_origin_vector': [-7.885966681786997, 24.270509831248425], 'shift_vector_based_distance': [14.265847744427305, 4.635254915624208], 'origin_directed_line': {'directed': True, 'location_point': [414.26584774442733, 304.6352549156242], 'direction_vector': [-7.885966681786997, 24.270509831248425]}, 'girds': {0: {'directed': True, 'location_point': [414.26584774442733, 304.6352549156242], 'direction_vector': [-7.885966681786997, 24.270509831248425]}, 1: {'directed': True, 'location_point': [556.9243251887004, 350.9878040718663], 'direction_vector': [-7.885966681786997, 24.270509831248425]}, -1: {'directed': True, 'location_point': [271.60737030015423, 258.2827057593821], 'direction_vector': [-7.885966681786997, 24.270509831248425]}}}]
-back_list=get_girds_interaction(back_list)
-for i in back_list:
-    print(f"\n{i}")
+till=TILLING(back_list)
+till.get_girds_interaction()
+print(till.interaction_data_point_location)
+# for t,i in enumerate(till.girds_data):
+#     print(t)
+#     print(i)
+
+back_list=till.interaction_data_point_location
+# print(back_list)
+till.sort_girds_interaction()
+print(till.interaction_data_line_id)
+# for i in back_list:
+#     print(f"\n{i}")
