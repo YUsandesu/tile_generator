@@ -1,27 +1,3 @@
-import py5_tools
-py5_tools.add_jars('../jars')
-from YuSan_PY5_Toolscode import *
-from the_control import *
-# import tilling
-color=[py5.color(255,0,0),
-           py5.color(0,255,0),
-           py5.color(0,0,255),
-           py5.color(0,255,255),
-           py5.color(255,255,0),
-           py5.color(255,0,255),
-           py5.color(125,125,0),
-           py5.color(125,0,125),
-           py5.color(0,125,125),
-           py5.color(125, 125, 255),
-           py5.color(125, 255, 125),
-           py5.color(255, 125, 125),
-           py5.color(125, 0, 255),
-           py5.color(255, 0, 125),
-           py5.color(255, 125, 0),
-           ] #颜色常量
-
-
-
 
 
 def setup():
@@ -33,7 +9,7 @@ def setup():
     slider('distance',location=[50,py5.height-90],value=15,range=[0,500])
     slider('zoom',location=[50,py5.height-60],value=150,range=[0,500])
     slider('num',location=[50,py5.height-30],size=[500,20],value=3,range=[0,500])
-    gird_data = create_gird(5, 15, gap=150, num_of_line=3, center=screen_axis(0, 0))
+    gird_data = BruijnsTilling.create_gird(5, 15, gap=150, num_of_line=3, center=screen_axis(0, 0))
     #print(f"初次生成the_gird:{the_gird}")
 
 def draw():
@@ -41,7 +17,7 @@ def draw():
 
     back = slider_value()
     if back is not None:
-        gird_data=create_gird(sides=back['sides'],
+        gird_data=BruijnsTilling.create_gird(sides=back['sides'],
                               shifted_distance=back['distance'],
                               gap=back['zoom'],
                               center=screen_axis(0,0),
@@ -71,8 +47,29 @@ def draw():
 
 
 if __name__ == "__main__":
+    from the_control import *
+    from YuSan_PY5_Toolscode import *
+    color = [py5.color(255, 0, 0),
+             py5.color(0, 255, 0),
+             py5.color(0, 0, 255),
+             py5.color(0, 255, 255),
+             py5.color(255, 255, 0),
+             py5.color(255, 0, 255),
+             py5.color(125, 125, 0),
+             py5.color(125, 0, 125),
+             py5.color(0, 125, 125),
+             py5.color(125, 125, 255),
+             py5.color(125, 255, 125),
+             py5.color(255, 125, 125),
+             py5.color(125, 0, 255),
+             py5.color(255, 0, 125),
+             py5.color(255, 125, 0),
+             ]  # 颜色常量
+
+    from tilling import BruijnsTilling
     gird_data:list
     py5.run_sketch()
+
 
 
 
