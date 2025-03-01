@@ -2,7 +2,7 @@
 import py5
 import json
 import numpy as np
-from YuSan_PY5_Toolscode import Tools2D
+from YuSan_PY5_Toolscode import Tools2D, screen_axis, screen_draw_SegmentLine
 
 
 def distance_line_dict(line_dict, center=(250, 250)):
@@ -32,9 +32,18 @@ def distance_line_dict(line_dict, center=(250, 250)):
 
 def setup():
     py5.size(500, 500)
+    s_v= screen_axis(0,0)
+    print(tilling_data)
+    for seg_line in tilling_data:
+        print(seg_line)
+        A_P,B_P=tool.point_shift(seg_line,s_v)
+        print(A_P,B_P)
+        tool.Segmentline_drop(A_P, B_P)
 
 def draw():
     py5.background(155)
+    screen_draw_SegmentLine(tool.get_Segmentline_dic(),0)
+
 
 class TILLING:
     def __init__(self,girds_data):
@@ -160,15 +169,15 @@ class TILLING:
         # 转换成元组方便使用集合方法
         the_origin_vectors = [tuple(vector) for vector in gird_origin_vectors]
         vectors_set = {tuple(vector) for vector in vectors}
-
         sides = len(the_origin_vectors)
         if sides % 2 != 0:  # 奇数
-            print('进入奇数处理')
+            # print('进入奇数处理')
             temp_list = [None] * sides * 2
+            temp_list:  [None] * sides * 2 #防止pycharm检查器报错
             for i, the_vector in enumerate(the_origin_vectors):
                 if the_vector in vectors_set:
-                    temp_list[2 * i] = the_vector  # noqa
-                    temp_list[(2 * i + sides) % (sides * 2)] = (-the_vector[0], -the_vector[1])  # noqa
+                    temp_list[2 * i] = the_vector
+                    temp_list[(2 * i + sides) % (sides * 2)] = (-the_vector[0], -the_vector[1])
             tilling_vectors = [a_vector for a_vector in temp_list if a_vector is not None]
 
         else:  # 偶数
@@ -184,39 +193,78 @@ class TILLING:
         cumulative_sum = np.cumsum(tilling_vectors_np, axis=0)
         tilling = cumulative_sum.tolist()
 
-        tem = Tools2D()  # 防止出现无穷小数
-        tilling = [[tem.reduce_errors(num=vector[0]), tem.reduce_errors(vector[1])] for vector in tilling]
+        # 防止出现无穷小数
+        tilling = [[Tools2D.reduce_errors(vector[0]), Tools2D.reduce_errors(vector[1])] for vector in tilling]
 
         # 此处一并返回原vector,方便拼接.
         # vector_o[0]是 tilling[-1]和[0] (开头和末尾)
         # vector_o[1]是[0]和[1] (第一个和第二个)-->以此类推
-        tilling_dict = {(tuple(vectors[0])): [tilling[-1], tilling[0]]}
-        tilling_dict = tilling_dict | {(tuple(vector)): [tilling[t - 1], tilling[t]]  # noqa
-                                       for t, vector in
-                                       enumerate(tilling_vectors[1:], start=1)}  # 切掉了0 这样t不会超出index
+        tilling_dict_positive = {(tuple(vectors[0])): [tilling[-1], tilling[0]]}
+        tilling_dict_negative = {}
+        for t, vector in enumerate(tilling_vectors[1:], start=1):
+            if tuple(vector) in vectors_set:
+                tilling_dict_positive[tuple(vector)] = [tilling[t - 1], tilling[t]]
+            else:
+                tilling_dict_negative[tuple(vector)] = [tilling[t - 1], tilling[t]]
 
-        return tilling_dict
+        return tilling_dict_positive,tilling_dict_negative
 
     def splice_tilling(self,interaction_point_location):
         """
 
         """
         # <think>一个交点具有两个向量,相应的具有:四个方向
+        tem = Tools2D()
+
         data_point = self.interaction_data_point_location
+        o_vector = [i['origin_vector'] for i in self.girds_data]
+
         if not interaction_point_location in data_point:
             raise ValueError (f"interaction_data_point_location中未找到点{interaction_point_location}")
 
+
+        inter_lines_index = data_point[interaction_point_location]
+        now_vector: list[tuple[int | float]] = [tuple(o_vector[i]) for i,_ in inter_lines_index]
         # 获取自己的tilling形状
-        inter_lines = data_point[interaction_point_location]
-        now_vector = [self.girds_data[index] for index,num in inter_lines]
-        o_vector = [i['origin_vector']for i in self.girds_data]
-        self.get_tilling_information(o_vector,now_vector)
+        o_positive_sides,o_negative_sides = self.get_tilling_information(o_vector,now_vector)
+        origin_tilling = o_positive_sides | o_negative_sides
+        return_list = list(origin_tilling.values())
+        #查询正方向的点和负方向的点
+        data_line_id = self.interaction_data_line_id
+        next_positive_inter_points=[]
+        next_negative_inter_points=[]
+        for line_id in inter_lines_index:
+            list_index = data_line_id[line_id].index(list(interaction_point_location))
+            #查询字典中的前后,字典中已经按照线的方向顺序排好了
+            try:next_positive_inter_points.append(data_line_id[line_id][list_index + 1])
+            except IndexError:pass #防止超出范围
+            try:next_negative_inter_points.append(data_line_id[line_id][list_index - 1])
+            except IndexError:pass
 
-        #拼接两个正向的
+        for next_point in next_positive_inter_points:
+            inter_index_list = data_point[tuple(next_point)]
+            next_vectors = [tuple(o_vector[i]) for i,_ in inter_index_list]
+            next_positive_sides,next_o_negative_sides = self.get_tilling_information(o_vector,next_vectors)
+
+            target_side = set(now_vector)&set(next_vectors)
+            if len(target_side)!=1:
+                raise ValueError(f"获取到不止一条的共线,无法拼接:{target_side}")
+            target_side = target_side.pop()
+            # 因为是正方向, 正向量形成的点和下一个的负方向对齐
+            target_side_location_in_origin = o_positive_sides[target_side]
+            target_side_location_in_next = next_o_negative_sides.pop((-target_side[0],-target_side[1]))
+            t_o_A, _ = target_side_location_in_origin
+            t_n_A, _ = target_side_location_in_next
+            shift_vector = [t_o_A[0] - t_n_A[0], t_o_A[1] - t_n_A[1]]
+            print('next_o_negative_sides:',next_o_negative_sides,'shift_vector',shift_vector)
+            for _,segment_line in list(next_o_negative_sides.values()):
+                return_list.append(tem.point_shift(segment_line, shift_vector))
+                print("return_list加入:",tem.point_shift(segment_line, shift_vector))
 
 
 
-        print()
+        print(f'splice_tilling:{return_list}')
+        return  return_list
 
     @staticmethod
     def is_able_splice(inter_info_a, inter_info_b):
@@ -253,6 +301,10 @@ till=TILLING(back_list)
 till.get_girds_interaction()
 till.sort_girds_interaction()
 print(f'interaction_data_line_id:\n{till.interaction_data_line_id}')
-print(f'interaction_data_point_location:\n{till.interaction_data_point_location}')
+# print(f'interaction_data_point_location:\n{till.interaction_data_point_location}')
+tilling_data = till.splice_tilling((389.10186207991956, 315.0))
 # for i in back_list:
 #     print(f"\n{i}")
+tool = Tools2D()
+
+py5.run_sketch()
