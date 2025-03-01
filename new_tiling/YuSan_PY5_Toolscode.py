@@ -181,7 +181,7 @@ class Tools2D:
         B_x, B_y = self.point_get_info(Bpoint)['location']
         vector = [self.reduce_errors(B_x - A_x), self.reduce_errors(B_y - A_y)]
         return vector
-    def point_shift(self, point, vector):
+    def point_shift(self, point_or_points, vector):
         """
         将point按照vector的方向平移
         此方法point只接受[x,y],或者point的列表[[x,y],[x,y]]
@@ -191,16 +191,16 @@ class Tools2D:
         if not isinstance(vector, (tuple, list)) or len(vector) != 2:
             raise ValueError(f"平移向量错误,当前为{vector}")
         s_x, s_y = vector[0], vector[1]
-        if self.list_depth(point)==2:
+        if self.list_depth(point_or_points)==2:
             #如果输入的是一组点而不是一个点
             back_list=[]
-            for i in point:
-                p_x, p_y = i[0], i[1]
+            for point in point_or_points:
+                p_x, p_y = point
                 back_x = p_x + s_x
                 back_y = p_y + s_y
                 back_list.append([back_x, back_y])
             return back_list
-        p_x, p_y = point[0], point[1]
+        p_x, p_y = point_or_points[0], point_or_points[1]
         back_x = p_x + s_x
         back_y = p_y + s_y
         return [back_x, back_y]
@@ -254,7 +254,9 @@ class Tools2D:
         multiple = norm / math.hypot(v_x, v_y)
         back = [v_x * multiple, v_y * multiple]
         return back
-    def reduce_errors(self, num, max_value=1e10, min_value=1e-10):
+
+    @staticmethod
+    def reduce_errors(num, max_value=1e10, min_value=1e-10):
         """
         如果接近无穷大返回None，接近无穷小返回0
         """
