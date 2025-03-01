@@ -213,7 +213,7 @@ class TILLING:
         self.get_tilling_information(o_vector,now_vector)
 
         #拼接两个正向的
-        
+
 
 
         print()
