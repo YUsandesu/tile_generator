@@ -1,11 +1,6 @@
-# import gird
-import warnings
-import py5
-import json
-import numpy as np
-from YuSan_PY5_Toolscode import Tools2D, screen_axis, screen_draw_SegmentLine
-from data_dict import base_data
-
+if __name__ == "__main__":
+    from the_control import *
+from YuSan_PY5_Toolscode import *
 
 class BruijnsTilling:
     def __init__(self,girds_data=None,sides=5,shifted_distance=50,gap=100,center=(100, 100),num_of_line=15):
@@ -16,6 +11,7 @@ class BruijnsTilling:
         self.interaction_data_point_location: dict[tuple[float | int]:list[int]] ={} # 按坐标点聚合的线段id信息
         self.interaction_data_line_id: dict[tuple[int]:list[float | int]] ={} # 按线段id聚合的坐标点信息
         self.get_girds_interaction()
+        print(f'共有:{len(self.interaction_data_point_location)}个点')
 
 
     def get_girds_interaction(self):
@@ -25,6 +21,7 @@ class BruijnsTilling:
         输出值:{ (p_x,p_y):[{v:v,n:n},{v_info}],[_x,_y]:[...],.. }
         最后自动按照向量方向来排序(从反方向-->正方向排队)
         """
+        from YuSan_PY5_Toolscode import Tools2D
         tools = Tools2D()
         girds_list = [i['girds'] for i in self.girds_data]
 
@@ -194,6 +191,7 @@ class BruijnsTilling:
         o_vector = [i['origin_vector'] for i in self.girds_data]
         if isinstance(interaction_point_location,list):
             interaction_point_location=tuple(interaction_point_location)
+        print(f'splice_tilling输入:{interaction_point_location}')
         if not interaction_point_location in data_point:
             raise ValueError (f"interaction_data_point_location中未找到点{interaction_point_location}")
 
@@ -231,8 +229,10 @@ class BruijnsTilling:
             if len(target_side)==1:
                 target_side = target_side.pop()
             else:
-                print(f'当前的拼块的向量信息:{now_vector},下一个拼块{next_vectors}')
-                raise ValueError(f"获取到不止一条的共线,无法拼接:{target_side}")
+                warnings.warn(f'当前的拼块的向量信息:{now_vector},下一个拼块{next_vectors}')
+                continue
+                # target_side = random.choice(list(target_side))
+                # raise ValueError(f"获取到不止一条的共线,无法拼接:{target_side}")
 
             if is_positive:up_sign = 1
             else:up_sign = -1
@@ -258,13 +258,15 @@ class BruijnsTilling:
 
         now_tilling = []
         used_points = []
-        last_shifted = []
         next_depth_points_info = [{'shifted':[0,0],'last_shifted':[0,0],'spliced_inter':start_inter_point}]
 
         for this_dict in next_depth_points_info:
             print(f'进入循环,本次:{this_dict},num:{num}')
 
             return_info,return_tilling = self.splice_tilling(this_dict['spliced_inter'],used_points)
+            if not (return_info or return_tilling):
+                warnings.warn('缺少返回值')
+                continue
             used_points.append(this_dict['spliced_inter'])
             print(f'刚刚进行了splice_tilling:{this_dict['spliced_inter']},获得信息{return_info}')
 
@@ -273,7 +275,7 @@ class BruijnsTilling:
             print(f'++++依照{this_dict['last_shifted']}+++\n对return_tilling:{return_tilling}\n进行平移:{return_tilling_shifted}')
             for next_point_dict in return_info:
                 next_point_dict['last_shifted']=Tools2D.point_shift(this_dict['last_shifted'],next_point_dict['shifted'])
-                print(f'当前last_shifted:{last_shifted},新的shifted:{next_point_dict},得到:{next_point_dict['last_shifted']}')
+                print(f'当前last_shifted:{this_dict['last_shifted']},新的shifted:{next_point_dict['shifted']},得到:{next_point_dict['last_shifted']}')
                 next_depth_points_info.append(next_point_dict)
 
             num = num -1
@@ -348,20 +350,33 @@ class BruijnsTilling:
         print(return_girds_data)
         return return_girds_data
 
-used_data= [{'origin_vector': [0, 25.519524250561197], 'pen_origin_vector': [-25.519524250561197, 0], 'shift_vector_based_distance': [0, 15], 'origin_directed_line': {'directed': True, 'location_point': [400.0, 315.0], 'direction_vector': [-25.519524250561197, 0]}, 'girds': {0: {'directed': True, 'location_point': [400.0, 315.0], 'direction_vector': [-25.519524250561197, 0]}, 1: {'directed': True, 'location_point': [400.0, 465.0], 'direction_vector': [-25.519524250561197, 0]}, -1: {'directed': True, 'location_point': [400.0, 165.0], 'direction_vector': [-25.519524250561197, 0]}}}, {'origin_vector': [-24.27050983124842, 7.885966681787004], 'pen_origin_vector': [-7.885966681787006, -24.27050983124842], 'shift_vector_based_distance': [-14.265847744427303, 4.635254915624212], 'origin_directed_line': {'directed': True, 'location_point': [385.7341522555727, 304.6352549156242], 'direction_vector': [-7.885966681787006, -24.27050983124842]}, 'girds': {0: {'directed': True, 'location_point': [385.7341522555727, 304.6352549156242], 'direction_vector': [-7.885966681787006, -24.27050983124842]}, 1: {'directed': True, 'location_point': [243.07567481129968, 350.9878040718663], 'direction_vector': [-7.885966681787006, -24.27050983124842]}, -1: {'directed': True, 'location_point': [528.3926296998458, 258.2827057593821], 'direction_vector': [-7.885966681787006, -24.27050983124842]}}}, {'origin_vector': [-15.000000000000002, -20.6457288070676], 'pen_origin_vector': [20.6457288070676, -15.000000000000004], 'shift_vector_based_distance': [-8.8167787843871, -12.13525491562421], 'origin_directed_line': {'directed': True, 'location_point': [391.1832212156129, 287.8647450843758], 'direction_vector': [20.6457288070676, -15.000000000000004]}, 'girds': {0: {'directed': True, 'location_point': [391.1832212156129, 287.8647450843758], 'direction_vector': [20.6457288070676, -15.000000000000004]}, 1: {'directed': True, 'location_point': [303.0154333717419, 166.51219592813368], 'direction_vector': [20.6457288070676, -15.000000000000004]}, -1: {'directed': True, 'location_point': [479.3510090594839, 409.2172942406179], 'direction_vector': [20.6457288070676, -15.000000000000004]}}}, {'origin_vector': [14.999999999999996, -20.645728807067602], 'pen_origin_vector': [20.645728807067602, 14.999999999999995], 'shift_vector_based_distance': [8.816778784387097, -12.135254915624213], 'origin_directed_line': {'directed': True, 'location_point': [408.8167787843871, 287.8647450843758], 'direction_vector': [20.645728807067602, 14.999999999999995]}, 'girds': {0: {'directed': True, 'location_point': [408.8167787843871, 287.8647450843758], 'direction_vector': [20.645728807067602, 14.999999999999995]}, 1: {'directed': True, 'location_point': [496.9845666282581, 166.51219592813365], 'direction_vector': [20.645728807067602, 14.999999999999995]}, -1: {'directed': True, 'location_point': [320.6489909405161, 409.2172942406179], 'direction_vector': [20.645728807067602, 14.999999999999995]}}}, {'origin_vector': [24.270509831248425, 7.885966681786999], 'pen_origin_vector': [-7.885966681786997, 24.270509831248425], 'shift_vector_based_distance': [14.265847744427305, 4.635254915624208], 'origin_directed_line': {'directed': True, 'location_point': [414.26584774442733, 304.6352549156242], 'direction_vector': [-7.885966681786997, 24.270509831248425]}, 'girds': {0: {'directed': True, 'location_point': [414.26584774442733, 304.6352549156242], 'direction_vector': [-7.885966681786997, 24.270509831248425]}, 1: {'directed': True, 'location_point': [556.9243251887004, 350.9878040718663], 'direction_vector': [-7.885966681786997, 24.270509831248425]}, -1: {'directed': True, 'location_point': [271.60737030015423, 258.2827057593821], 'direction_vector': [-7.885966681786997, 24.270509831248425]}}}]
-till=BruijnsTilling(used_data)
-tilling_data = till.create_tilling((389.10186207991956, 315.0),num = 85)
-
-tool = Tools2D()
-
 def setup():
     py5.size(500, 500)
     s_v= screen_axis(0,0)
     for seg_line in tilling_data:
         A_P,B_P=tool.point_shift(seg_line,s_v)
         tool.Segmentline_drop(A_P, B_P)
+    load()
+    slider('num', [50, py5.height - 120], value=5, range=[1, 800],size=[400,30])
 
 def draw():
+    global  tilling_data
+    s_v = screen_axis(0, 0)
     py5.background(155)
+    back = slider_value()
+    if back is not None:
+        tool.reset()
+        tilling_data = till.create_tilling(the_p, num=back['num'])
+        for seg_line in tilling_data:
+            A_P, B_P = tool.point_shift(seg_line, s_v)
+            tool.Segmentline_drop(A_P, B_P)
+
     screen_draw_SegmentLine(tool.get_Segmentline_dic(),0)
-py5.run_sketch()
+
+if __name__ == "__main__":
+    tool = Tools2D()
+    till = BruijnsTilling(sides=5, num_of_line=30)
+    the_p = till.interaction_data_line_id[(0, 0)][60]
+    print(f'选取交点:{the_p}')
+    tilling_data = till.create_tilling(the_p, num=1)
+    py5.run_sketch()
