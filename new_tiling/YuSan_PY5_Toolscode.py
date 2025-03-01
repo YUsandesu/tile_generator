@@ -181,7 +181,8 @@ class Tools2D:
         B_x, B_y = self.point_get_info(Bpoint)['location']
         vector = [self.reduce_errors(B_x - A_x), self.reduce_errors(B_y - A_y)]
         return vector
-    def point_shift(self, point_or_points, vector):
+    @staticmethod
+    def point_shift(point_or_points, vector):
         """
         将point按照vector的方向平移
         此方法point只接受[x,y],或者point的列表[[x,y],[x,y]]
@@ -190,16 +191,20 @@ class Tools2D:
         """
         if not isinstance(vector, (tuple, list)) or len(vector) != 2:
             raise ValueError(f"平移向量错误,当前为{vector}")
-        s_x, s_y = vector[0], vector[1]
-        if self.list_depth(point_or_points)==2:
+        s_x, s_y = vector
+        if Tools2D.list_depth(point_or_points)==2:
             #如果输入的是一组点而不是一个点
             back_list=[]
             for point in point_or_points:
+                if len(point)!=2:
+                    raise ValueError(f'point输入值有误:{point_or_points}')
                 p_x, p_y = point
                 back_x = p_x + s_x
                 back_y = p_y + s_y
                 back_list.append([back_x, back_y])
             return back_list
+        if len(point_or_points) != 2:
+            raise ValueError(f'point输入值有误:{point_or_points}')
         p_x, p_y = point_or_points[0], point_or_points[1]
         back_x = p_x + s_x
         back_y = p_y + s_y
@@ -228,11 +233,13 @@ class Tools2D:
 
         x,y=list(rotated_vector) #防止无限接近0的情况
         return [self.reduce_errors(x),self.reduce_errors(y)]
-    def vector_get_norm(self,vector):
+    @staticmethod
+    def vector_get_norm(vector):
         #math.hypot 函数可以正确处理负数
         back = math.hypot(vector[0],vector[1])
         return back
-    def vector_change_norm(self, vector, norm=1):
+    @staticmethod
+    def vector_change_norm(vector, norm=1):
         """
         调整向量的模长
         返回一个新的vector[x,y]
@@ -1271,7 +1278,8 @@ class Tools2D:
 
 
     # ////////////《常用操作》////////////
-    def list_depth(self,lst):
+    @staticmethod
+    def list_depth(lst):
         if not isinstance(lst, (list,tuple)):
             # 如果当前不是列表，层数为 0
             return 0
@@ -1279,7 +1287,8 @@ class Tools2D:
             # 如果列表是空的，层数为 1（只有一层）
             return 1
         # 递归判断每个元素的嵌套深度，并取最大值
-        return 1 + max(self.list_depth(item) for item in lst)
+        return 1 + max(Tools2D.list_depth(item) for item in lst)
+
     def get_inter_range(self, a=None, b=None):
         """
         查找a和b的交集
