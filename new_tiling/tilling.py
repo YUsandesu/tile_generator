@@ -134,7 +134,8 @@ class TILLING:
             reverse_data[line_id]=sorted_points
         self.interaction_data_line_id = reverse_data
 
-    def get_tilling_information(self,gird_origin_vectors, vectors):
+    @staticmethod
+    def get_tilling_information(gird_origin_vectors, vectors):
         """
         这是一个辅助函数,获得拼接图形的顺序,根据顺序可以拼接出闭合的多边形
         all_vectors_list是顺时针排列的origin_vector
@@ -196,53 +197,62 @@ class TILLING:
 
         return tilling_dict
 
+    def splice_tilling(self,interaction_point_location):
+        """
+
+        """
+        # <think>一个交点具有两个向量,相应的具有:四个方向
+        data_point = self.interaction_data_point_location
+        if not interaction_point_location in data_point:
+            raise ValueError (f"interaction_data_point_location中未找到点{interaction_point_location}")
+
+        # 获取自己的tilling形状
+        inter_lines = data_point[interaction_point_location]
+        now_vector = [self.girds_data[index] for index,num in inter_lines]
+        o_vector = [i['origin_vector']for i in self.girds_data]
+        self.get_tilling_information(o_vector,now_vector)
+
+        #拼接两个正向的
+        
 
 
-def splice_tilling(tilling_info_a, tilling_info_b, positive_direction):
-    """
-    start_interaction:某一个交点
-    direction,拼接方向
-    """
-    # <think>一个交点具有两个向量,相应的具有:四个方向
-    # TODO 在gird上面行走 例:一个交点是两条直线相交形成的,那么有4中行走方向(A正,A负,B正,B负)
-    print()
+        print()
 
-def is_able_splice(inter_info_a, inter_info_b):
-    """
-    判断能否成功拼接
-    返回这个tilling共线的[A共线的边,B共线的边]
-    """
-    #inter_info 示例: [{'vector': (0, 25), 'num': 0}, {'vector': (-24, 7), 'num': 1}]
+    @staticmethod
+    def is_able_splice(inter_info_a, inter_info_b):
+        """
+        判断能否成功拼接
+        返回这个tilling共线的[A共线的边,B共线的边]
+        """
+        # inter_info 示例: [{'vector': (0, 25), 'num': 0}, {'vector': (-24, 7), 'num': 1}]
 
-    collinear = {}
-    different = {}
+        collinear = {}
+        different = {}
 
-    for info_a in inter_info_a:
-        if info_a in inter_info_b:
-            collinear = info_a
-            inter_info_a.remove(info_a)
-            inter_info_b.remove(info_a)
-            continue
+        for info_a in inter_info_a:
+            if info_a in inter_info_b:
+                collinear = info_a
+                inter_info_a.remove(info_a)
+                inter_info_b.remove(info_a)
+                continue
 
-    if not collinear:
-        return False
+        if not collinear:
+            return False
 
-    #TODO 这里需要求两条线之间的向量A-B 是否Pen_vector方向相同
-    #条件: A,B交点信息,至少有一项是重合的-->也就是说在gird上 至少在一个方向上共线
-    #重合的边 就是生成tilling共线的边
-    #如果是朝正方向移动的那么就是 A的正 对应 B的负 如果是朝负方向移动 就是A-对B+
+        # TODO 这里需要求两条线之间的向量A-B 是否Pen_vector方向相同
+        # 条件: A,B交点信息,至少有一项是重合的-->也就是说在gird上 至少在一个方向上共线
+        # 重合的边 就是生成tilling共线的边
+        # 如果是朝正方向移动的那么就是 A的正 对应 B的负 如果是朝负方向移动 就是A-对B+
+
+
+
+
 
 back_list= [{'origin_vector': [0, 25.519524250561197], 'pen_origin_vector': [-25.519524250561197, 0], 'shift_vector_based_distance': [0, 15], 'origin_directed_line': {'directed': True, 'location_point': [400.0, 315.0], 'direction_vector': [-25.519524250561197, 0]}, 'girds': {0: {'directed': True, 'location_point': [400.0, 315.0], 'direction_vector': [-25.519524250561197, 0]}, 1: {'directed': True, 'location_point': [400.0, 465.0], 'direction_vector': [-25.519524250561197, 0]}, -1: {'directed': True, 'location_point': [400.0, 165.0], 'direction_vector': [-25.519524250561197, 0]}}}, {'origin_vector': [-24.27050983124842, 7.885966681787004], 'pen_origin_vector': [-7.885966681787006, -24.27050983124842], 'shift_vector_based_distance': [-14.265847744427303, 4.635254915624212], 'origin_directed_line': {'directed': True, 'location_point': [385.7341522555727, 304.6352549156242], 'direction_vector': [-7.885966681787006, -24.27050983124842]}, 'girds': {0: {'directed': True, 'location_point': [385.7341522555727, 304.6352549156242], 'direction_vector': [-7.885966681787006, -24.27050983124842]}, 1: {'directed': True, 'location_point': [243.07567481129968, 350.9878040718663], 'direction_vector': [-7.885966681787006, -24.27050983124842]}, -1: {'directed': True, 'location_point': [528.3926296998458, 258.2827057593821], 'direction_vector': [-7.885966681787006, -24.27050983124842]}}}, {'origin_vector': [-15.000000000000002, -20.6457288070676], 'pen_origin_vector': [20.6457288070676, -15.000000000000004], 'shift_vector_based_distance': [-8.8167787843871, -12.13525491562421], 'origin_directed_line': {'directed': True, 'location_point': [391.1832212156129, 287.8647450843758], 'direction_vector': [20.6457288070676, -15.000000000000004]}, 'girds': {0: {'directed': True, 'location_point': [391.1832212156129, 287.8647450843758], 'direction_vector': [20.6457288070676, -15.000000000000004]}, 1: {'directed': True, 'location_point': [303.0154333717419, 166.51219592813368], 'direction_vector': [20.6457288070676, -15.000000000000004]}, -1: {'directed': True, 'location_point': [479.3510090594839, 409.2172942406179], 'direction_vector': [20.6457288070676, -15.000000000000004]}}}, {'origin_vector': [14.999999999999996, -20.645728807067602], 'pen_origin_vector': [20.645728807067602, 14.999999999999995], 'shift_vector_based_distance': [8.816778784387097, -12.135254915624213], 'origin_directed_line': {'directed': True, 'location_point': [408.8167787843871, 287.8647450843758], 'direction_vector': [20.645728807067602, 14.999999999999995]}, 'girds': {0: {'directed': True, 'location_point': [408.8167787843871, 287.8647450843758], 'direction_vector': [20.645728807067602, 14.999999999999995]}, 1: {'directed': True, 'location_point': [496.9845666282581, 166.51219592813365], 'direction_vector': [20.645728807067602, 14.999999999999995]}, -1: {'directed': True, 'location_point': [320.6489909405161, 409.2172942406179], 'direction_vector': [20.645728807067602, 14.999999999999995]}}}, {'origin_vector': [24.270509831248425, 7.885966681786999], 'pen_origin_vector': [-7.885966681786997, 24.270509831248425], 'shift_vector_based_distance': [14.265847744427305, 4.635254915624208], 'origin_directed_line': {'directed': True, 'location_point': [414.26584774442733, 304.6352549156242], 'direction_vector': [-7.885966681786997, 24.270509831248425]}, 'girds': {0: {'directed': True, 'location_point': [414.26584774442733, 304.6352549156242], 'direction_vector': [-7.885966681786997, 24.270509831248425]}, 1: {'directed': True, 'location_point': [556.9243251887004, 350.9878040718663], 'direction_vector': [-7.885966681786997, 24.270509831248425]}, -1: {'directed': True, 'location_point': [271.60737030015423, 258.2827057593821], 'direction_vector': [-7.885966681786997, 24.270509831248425]}}}]
 till=TILLING(back_list)
 till.get_girds_interaction()
-print(till.interaction_data_point_location)
-# for t,i in enumerate(till.girds_data):
-#     print(t)
-#     print(i)
-
-back_list=till.interaction_data_point_location
-# print(back_list)
 till.sort_girds_interaction()
-print(till.interaction_data_line_id)
+print(f'interaction_data_line_id:\n{till.interaction_data_line_id}')
+print(f'interaction_data_point_location:\n{till.interaction_data_point_location}')
 # for i in back_list:
 #     print(f"\n{i}")
