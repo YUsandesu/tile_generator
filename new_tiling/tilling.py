@@ -35,9 +35,7 @@ def setup():
     s_v= screen_axis(0,0)
     print(tilling_data)
     for seg_line in tilling_data:
-        print(seg_line)
         A_P,B_P=tool.point_shift(seg_line,s_v)
-        print(A_P,B_P)
         tool.Segmentline_drop(A_P, B_P)
 
 def draw():
@@ -242,24 +240,26 @@ class TILLING:
             except IndexError:pass
 
         for next_point in next_positive_inter_points:
-            inter_index_list = data_point[tuple(next_point)]
-            next_vectors = [tuple(o_vector[i]) for i,_ in inter_index_list]
-            next_positive_sides,next_o_negative_sides = self.get_tilling_information(o_vector,next_vectors)
+            next_vectors = [tuple(o_vector[index]) for index,_
+                            in data_point[tuple(next_point)]]
+            next_positive_sides,next_negative_sides = self.get_tilling_information(o_vector,next_vectors)
 
             target_side = set(now_vector)&set(next_vectors)
             if len(target_side)!=1:
                 raise ValueError(f"获取到不止一条的共线,无法拼接:{target_side}")
             target_side = target_side.pop()
             # 因为是正方向, 正向量形成的点和下一个的负方向对齐
-            target_side_location_in_origin = o_positive_sides[target_side]
-            target_side_location_in_next = next_o_negative_sides.pop((-target_side[0],-target_side[1]))
-            t_o_A, _ = target_side_location_in_origin
-            t_n_A, _ = target_side_location_in_next
+            collinear_in_now = o_positive_sides[target_side]
+            collinear_in_next = next_negative_sides.pop((-target_side[0],-target_side[1]))
+            t_o_A, _ = collinear_in_now
+            _,t_n_A = collinear_in_next
             shift_vector = [t_o_A[0] - t_n_A[0], t_o_A[1] - t_n_A[1]]
-            print('next_o_negative_sides:',next_o_negative_sides,'shift_vector',shift_vector)
-            for _,segment_line in list(next_o_negative_sides.values()):
+            new_seg_line_list = list(next_positive_sides.values())+list(next_negative_sides.values())
+            for segment_line in new_seg_line_list:
                 return_list.append(tem.point_shift(segment_line, shift_vector))
-                print("return_list加入:",tem.point_shift(segment_line, shift_vector))
+
+
+
 
 
 
