@@ -19,6 +19,7 @@ def slider(title,location=[50,150],value=50,range=[0,50],size=[200,20]):
         .setPosition(location[0], location[1]) \
         .setSize(size[0], size[1]) \
         .setRange(range[0], range[1]) \
+        .setNumberOfTickMarks(range[1]-range[0]+1) \
         .setValue(math.floor(value))
     slider_dic[title]=math.floor(value)
 def slider_value():
