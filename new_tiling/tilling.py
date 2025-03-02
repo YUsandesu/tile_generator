@@ -261,7 +261,7 @@ class BruijnsTilling:
         next_depth_points_info = [{'shifted':[0,0],'last_shifted':[0,0],'spliced_inter':start_inter_point}]
 
         for this_dict in next_depth_points_info:
-            print(f'进入循环,本次:{this_dict},num:{num}')
+            # print(f'进入循环,本次:{this_dict},num:{num}')
 
             return_info,return_tilling = self.splice_tilling(this_dict['spliced_inter'],used_points)
             if not (return_info or return_tilling):
@@ -269,19 +269,16 @@ class BruijnsTilling:
                 continue
             used_points.append(this_dict['spliced_inter'])
             print(f'刚刚进行了splice_tilling:{this_dict['spliced_inter']},获得信息{return_info}')
-
             return_tilling_shifted = [Tools2D.point_shift(i, this_dict['last_shifted']) for i in return_tilling]
             now_tilling = now_tilling + return_tilling_shifted
-            print(f'++++依照{this_dict['last_shifted']}+++\n对return_tilling:{return_tilling}\n进行平移:{return_tilling_shifted}')
+
             for next_point_dict in return_info:
                 next_point_dict['last_shifted']=Tools2D.point_shift(this_dict['last_shifted'],next_point_dict['shifted'])
-                print(f'当前last_shifted:{this_dict['last_shifted']},新的shifted:{next_point_dict['shifted']},得到:{next_point_dict['last_shifted']}')
                 next_depth_points_info.append(next_point_dict)
 
             num = num -1
             if num <= 0:
                 break
-
         return now_tilling
 
 
@@ -357,8 +354,8 @@ def setup():
         A_P,B_P=tool.point_shift(seg_line,s_v)
         tool.Segmentline_drop(A_P, B_P)
     load()
-    slider('num', [50, py5.height - 120], value=5, range=[1, 800],size=[400,30])
-
+    slider('num1', [50, py5.height - 120], value=0, range=[0, 10],size=[400,30])
+    slider('num2', [50, py5.height - 80], value=0, range=[0, 1000], size=[400, 30])
 def draw():
     global  tilling_data
     s_v = screen_axis(0, 0)
@@ -366,10 +363,10 @@ def draw():
     back = slider_value()
     if back is not None:
         tool.reset()
-        tilling_data = till.create_tilling(the_p, num=back['num'])
+        tilling_data = till.create_tilling(the_p, num=back['num1']+back['num2'])
         for seg_line in tilling_data:
             A_P, B_P = tool.point_shift(seg_line, s_v)
-            tool.Segmentline_drop(A_P, B_P)
+            tool.Segmentline_drop(A_P, B_P,color=py5.color(0,0,0,90))
 
     screen_draw_SegmentLine(tool.get_Segmentline_dic(),0)
 
@@ -378,5 +375,5 @@ if __name__ == "__main__":
     till = BruijnsTilling(sides=5, num_of_line=30)
     the_p = till.interaction_data_line_id[(0, 0)][60]
     print(f'选取交点:{the_p}')
-    tilling_data = till.create_tilling(the_p, num=1)
+    tilling_data = till.create_tilling(the_p, num=0)
     py5.run_sketch()
