@@ -1,6 +1,6 @@
-if __name__ == "__main__":
-    from the_control import *
+from the_control import *
 from YuSan_PY5_Toolscode import *
+import pandas as pd
 
 class BruijnsTilling:
     def __init__(self,girds_data=None,sides=5,shifted_distance=50,gap=100,center=(100, 100),num_of_line=15):
@@ -261,8 +261,6 @@ class BruijnsTilling:
         next_depth_points_info = [{'shifted':[0,0],'last_shifted':[0,0],'spliced_inter':start_inter_point}]
 
         for this_dict in next_depth_points_info:
-            # print(f'进入循环,本次:{this_dict},num:{num}')
-
             return_info,return_tilling = self.splice_tilling(this_dict['spliced_inter'],used_points)
             if not (return_info or return_tilling):
                 warnings.warn('缺少返回值')
@@ -274,6 +272,10 @@ class BruijnsTilling:
 
             for next_point_dict in return_info:
                 next_point_dict['last_shifted']=Tools2D.point_shift(this_dict['last_shifted'],next_point_dict['shifted'])
+            return_tilling_shifted = [Tools2D.point_shift(i, this_dict['last_shifted']) for i in return_tilling]
+            now_tilling = now_tilling + return_tilling_shifted
+            for next_point_dict in return_info:
+                next_point_dict['last_shifted']=Tools2D.point_shift(this_dict['last_shifted'],next_point_dict['shifted'])
                 next_depth_points_info.append(next_point_dict)
 
             num = num -1
@@ -281,8 +283,7 @@ class BruijnsTilling:
                 break
         return now_tilling
 
-
-
+    # shifted_distance default value?
     @staticmethod
     def create_gird(sides, shifted_distance=0, gap=100, center=(100, 100), num_of_line=50):
         """
@@ -293,34 +294,69 @@ class BruijnsTilling:
         """
 
         tools = Tools2D()
-        return_girds_data = []
+        # return_girds_data = []
 
         # 在【0，0】创建一个多边形,返回点集到vector
         vectors_origin = tools.regular_polygon(sides=sides, side_length=30)
         return_girds_data = [{'origin_vector': o_v} for o_v in vectors_origin]
+        
+        # numpy, scipy, pandas
+        return_girds_df = pd.DataFrame(return_girds_data)
 
         # 取vector的垂直向量vector_pen
+        vectors_origin_np = np.asarray(vectors_origin)
+        
+        theta = np.deg2rad(90)
+        rotation_matrix = np.array([
+            [np.cos(theta), -np.sin(theta)],
+            [np.sin(theta), np.cos(theta)]
+        ])
+        print('-' * 40)
+        print((rotation_matrix @ vectors_origin_np.T).T)
+        print(vectors_origin_np @ rotation_matrix.T)
+        print('-' * 40)
         vectors_origin_pen = [tools.vector_rotate(the_vector, 90) for the_vector in vectors_origin]
-        for t, p_o_v in enumerate(vectors_origin_pen):
-            return_girds_data[t]['pen_origin_vector'] = p_o_v
+        print('-' * 40)
+        print(vectors_origin_pen)
+        print('-' * 40)
+        
+        # for t, p_o_v in enumerate(vectors_origin_pen):
+        #     return_girds_data[t]['pen_origin_vector'] = p_o_v
+
+        return_girds_df['pen_origin_vector'] = (vectors_origin_np @ rotation_matrix.T).tolist() 
 
         # 定义有向直线:
         for d_v in vectors_origin_pen:
             tools.directed_line_drop(location_point=center, direction_vector=d_v)
 
-        origin_directed_lines = tools.get_line_dic()
+        # origin_directed_lines = tools.get_line_dic()
+        origin_directed_lines = tools.line_dic
         origin_directed_lines_id = list(origin_directed_lines.keys())
+        
+        ## origin_directed_lines_id and origin_directed_lines can be obtained from origin_directed_lines.items()
+        # origin_directed_lines_id = []
+        # origin_directed_lines_temp = []
+        # for key, value in origin_directed_lines.items():
+        #     origin_directed_lines_id.append(key)
+        #     origin_directed_lines_temp.append(value)
 
+        # origin_vector.index == vectors_origin[times]
+        temp_result = []
         for times, origin_line_id in enumerate(origin_directed_lines_id):
             # 按照vector的方向,改变vector的模长-->获得平移向量distance_vector
             # TODO 此处模长可以不用以相同数值平移,可以存在长度差,应该再增加一个参数调整长度差
             distance_shift_vector = tools.vector_change_norm(vectors_origin[times], shifted_distance)
-            return_girds_data[times]['shift_vector_based_distance'] = distance_shift_vector
+            temp_result.append(distance_shift_vector)
+            # return_girds_data[times]['shift_vector_based_distance'] = distance_shift_vector
             tools.line_shift(origin_line_id, distance_shift_vector, rewrite=True, drop=False)
+        return_girds_df['shift_vector_based_distance'] = temp_result # enumerate can be removed
 
-        origin_directed_lines = list(tools.get_line_dic().values())  # 取出的直线数据,准备平移
+        origin_directed_lines = list(origin_directed_lines.values())  # 取出的直线数据,准备平移
         for t, o_d_line in enumerate(origin_directed_lines):
             return_girds_data[t]['origin_directed_line'] = o_d_line
+        return_girds_df['origin_directed_line'] = origin_directed_lines 
+        print(return_girds_df.head())
+        # -------------------------------------------------------------------------------------------------- #    
         tools.reset()  # 清除内容
 
         # 平移gird_0，构建平行网格gird
@@ -354,8 +390,8 @@ def setup():
         A_P,B_P=tool.point_shift(seg_line,s_v)
         tool.Segmentline_drop(A_P, B_P)
     load()
-    slider('num1', [50, py5.height - 120], value=0, range=[0, 10],size=[400,30])
-    slider('num2', [50, py5.height - 80], value=0, range=[0, 1000], size=[400, 30])
+    slider('num1', [50, py5.height - 120], value=0, range_val=[0, 10],size=[400,30])
+    slider('num2', [50, py5.height - 80], value=0, range_val=[0, 1000], size=[400, 30])
 def draw():
     global  tilling_data
     s_v = screen_axis(0, 0)

@@ -32,18 +32,22 @@ class Tools2D:
         调用_init_()重新初始化
         """
         self.__init__()
+        
     def get_point_dic(self):
         return self.point_dic
+    
     def get_Segmentline_dic(self):
         back_dic={}
         for i in self.Segmentline_dic.keys():
             back_dic[i]=self.Segmentline_get_info(i)
         return back_dic
-    def get_line_dic(self):
+    
+    def get_line_dic(self): # python has no public/private, public getter/setter functions (strong type) [variable; in a class, attribute -> property]
         """
         line_dic格式:{字母代号:{a:int,k:int,b:int}, 字母代号:{...}, ...}
         """
         return self.line_dic
+    
     def get_surface_dic(self):
         return self.surface_dic
 
@@ -181,6 +185,7 @@ class Tools2D:
         B_x, B_y = self.point_get_info(Bpoint)['location']
         vector = [self.reduce_errors(B_x - A_x), self.reduce_errors(B_y - A_y)]
         return vector
+
     @staticmethod
     def point_shift(point_or_points, vector):
         """
@@ -209,6 +214,7 @@ class Tools2D:
         back_x = p_x + s_x
         back_y = p_y + s_y
         return [back_x, back_y]
+    
     def vector_rotate(self, vector, theta):
         """
         把向量按照theta角度(度数)旋转
@@ -216,30 +222,32 @@ class Tools2D:
         返回:新的向量列表
         """
         # 将角度转换为弧度
-        theta = np.radians(theta)
+        theta = np.deg2rad(theta)
         # 旋转矩阵
         rotation_matrix = np.array([
             [np.cos(theta), -np.sin(theta)],
-            [np.sin(theta), np.cos(theta)]])
-        if self.list_depth(vector)==2:
-            #如果输入的是一组点而不是一个点
+            [np.sin(theta), np.cos(theta)]
+        ])
+        if self.list_depth(vector) == 2:
+            # print(vector)
+            #如果输入的是一组点而不是一个点 (what's the point???)
             backlist=[]
             for i in vector:
                 np_vector = np.array(i)
-                backlist.append( list(np.dot(rotation_matrix, np_vector)) )
+                backlist.append( list(rotation_matrix @ np_vector) )
             return backlist
         np_vector = np.array(vector)
-        rotated_vector = np.dot(rotation_matrix, np_vector)# 旋转向量
-
-        x,y=list(rotated_vector) #防止无限接近0的情况
-        return [self.reduce_errors(x),self.reduce_errors(y)]
+        rotated_vector = rotation_matrix @ np_vector # 旋转向量
+        x, y = rotated_vector #防止无限接近0的情况
+        return [self.reduce_errors(x), self.reduce_errors(y)] 
+    
     @staticmethod
     def vector_get_norm(vector):
         #math.hypot 函数可以正确处理负数
         back = math.hypot(vector[0],vector[1])
         return back
     @staticmethod
-    def vector_change_norm(vector, norm=1):
+    def vector_change_norm(vector, norm=1): # To numpy
         """
         调整向量的模长
         返回一个新的vector[x,y]
@@ -250,26 +258,26 @@ class Tools2D:
         if v_x == 0 and v_y == 0:
             raise ValueError("无法修改0向量的模长")
         if v_x == 0:
-            if vector[1]<0:
+            if v_y < 0:
                 #负数情况
                 return [0, -norm]
             return [0, norm]
         if v_y == 0:
-            if vector[0]<0:
-                return [-norm,0]
+            if v_x < 0:
+                return [-norm, 0]
             return [norm, 0]
-        multiple = norm / math.hypot(v_x, v_y)
+        multiple = norm / math.hypot(v_x, v_y) # normalization 
         back = [v_x * multiple, v_y * multiple]
         return back
 
     @staticmethod
-    def reduce_errors(num, max_value=1e10, min_value=1e-10):
+    def reduce_errors(num, max_value=1e10, min_value=1e-10): # TODO: to numpy -> clip
         """
         如果接近无穷大返回None，接近无穷小返回0
         """
-        if abs(num)>max_value:
+        if abs(num) > max_value:
             return None
-        elif abs(num)<min_value:
+        elif abs(num) < min_value:
             return 0
         return num
 
@@ -1031,7 +1039,7 @@ class Tools2D:
 
         return back
 
-    def line_chain_or_dic(self,line_chain_or_dic):
+    def line_chain_or_dic(self, line_chain_or_dic):
         """
         此方法无论输入的是dict还是'代号'
         统一会返回dict
@@ -1080,42 +1088,53 @@ class Tools2D:
             raise ValueError("location_point必须是包含两个元素的列表或元组")
         if direction_vector and len(direction_vector) != 2:
             raise ValueError("direction_vector必须是包含两个元素的列表或元组")
+        
         the_location_point=None
         the_direction_vector=None
         line_dict=None
         if line_chain_or_dic:
-            line_dict=self.line_chain_or_dic(line_chain_or_dic)
+            line_dict = self.line_chain_or_dic(line_chain_or_dic)
+            print(line_dict)
             if not line_dict:
                 raise ValueError(f"提供的Line错误{line_chain_or_dic}")
             if 'a' in line_dict:#垂直情况 a取值仅为0或1,如果为1就不存在键a
                 the_direction_vector=[0, 1]
-                the_location_point = [line_dict['b']/(-line_dict['k']),0]
+                the_location_point = [-line_dict['b'] / line_dict['k'], 0]
             else:
                 the_direction_vector=[1, line_dict['k']] #常规情况
 
         if location_point:
-            lo_x,lo_y=location_point
-            if line_dict :#提供了起点,判断原点是否符合标准
-                if self.line_solve(line_dict,lo_x)!=lo_y:
+            print(location_point)
+            lo_x, lo_y = location_point
+            if line_dict:#提供了起点,判断原点是否符合标准
+                if self.line_solve(line_dict, lo_x) != lo_y:
                     raise ValueError(f"提供的起点:{location_point}不在直线{line_dict}上")
             the_location_point = location_point
+            
         if direction_vector:
-            dr_x,dr_y=direction_vector
+            dr_x, dr_y = direction_vector
             if line_dict:
-                if line_dict['k']!=0 and (dr_y==0 or not math.isclose(dr_x/dr_y,line_dict['k'])):
+                if line_dict['k'] != 0 and (dr_y == 0 or not math.isclose(dr_x/dr_y,line_dict['k'])):
                     raise ValueError(f"提供的方向{direction_vector}和直线{line_dict}的斜率不匹配")
-                if line_dict['k']==0 and dr_y!=0:
+                if line_dict['k'] == 0 and dr_y != 0:
                     raise ValueError(f"提供的方向{direction_vector}和水平直线{line_dict}不匹配")
             the_direction_vector = direction_vector
-        if the_direction_vector and direction_vector:
-            detail_dic = {'directed': True, 'location_point': the_location_point,
-                          'direction_vector': the_direction_vector}
+            
+        if the_direction_vector and the_direction_vector:
+            detail_dic = {
+                'directed': True, 'location_point': the_location_point,
+                'direction_vector': the_direction_vector
+            }
+            print(detail_dic)
             new_letter = self.extract_letter()
             self.line_dic[new_letter] = detail_dic
             return new_letter
-        raise ValueError(f'缺少必要参数: location_point={location_point}, '
-                         f'direction_vector={direction_vector},'
-                         f' line_chain_or_dic={line_chain_or_dic}')
+        
+        raise ValueError(
+            f'缺少必要参数: location_point={location_point}, '
+            f'direction_vector={direction_vector},'
+            f' line_chain_or_dic={line_chain_or_dic}'
+        )
 
     def line_to_directed_line(self,line_chain_or_dic,location_point):
         return self.directed_line_drop(location_point=location_point, line_chain_or_dic=line_chain_or_dic)
@@ -1242,7 +1261,7 @@ class Tools2D:
             return 'inside' if not on_edge else 'on_edge'
         return 'on_edge' if on_edge else 'outside'
 
-    def regular_polygon(self,sides, side_length):
+    def regular_polygon(self, sides, side_length):
         """。
         参数：
         - sides: 正多边形的边数。
@@ -1256,7 +1275,7 @@ class Tools2D:
             将 2π 弧度 分成 times 等份。
             返回每份的弧度值。
             """
-            return 2 * math.pi / times  # 360 度 = 2π 弧度
+            return 2 * np.pi / times  # 360 度 = 2π 弧度
 
         if sides < 3:
             raise ValueError("边数必须大于或等于 3")
@@ -1267,14 +1286,13 @@ class Tools2D:
         theta = split_2pi(sides)  # 中心角的弧度值
         half_theta = theta / 2
         # 计算半径
-        radius = (side_length / 2) / math.sin(half_theta)
+        radius = side_length / 2 / np.sin(half_theta)
         point_start = [0, radius]  # 第一个点是从原点出发沿着y轴正方向前进的
         back_list = [point_start]
         for i in range(1, sides):
-            point = self.vector_rotate(point_start, math.degrees(theta) * i)
+            point = self.vector_rotate(point_start, np.rad2deg(theta) * i)
             back_list.append(point)
         return back_list
-
 
 
     # ////////////《常用操作》////////////
@@ -1561,16 +1579,18 @@ def draw_directed_line(line_detail_dict, color=py5.color(10, 10, 0, 255), stroke
     input_value={'color':color,'stroke_weight':stroke_weight,'floor':floor}
     screen_info = screen_get_info()
     x_range, y_range = screen_info['x_range'], screen_info['y_range']
-    tem = Tools2D()
-    if 'directed' not in line_detail_dict or line_detail_dict['directed'] is False:
+    tem = Tools2D() # singleton
+    if 'directed' not in line_detail_dict.keys() or not line_detail_dict['directed']:
         raise ValueError(f"输入的有向直线有误{line_detail_dict}")
-    lx,ly=line_detail_dict['location_point']
-    vx,vy=line_detail_dict['direction_vector']
+    lx, ly = line_detail_dict['location_point']
+    vx, vy = line_detail_dict['direction_vector']
 
     line_detail = tem.directed_line_to_line(line_detail_dict, temp=True)
-    segment_line = tem.line_to_Segmentline(line_detail,x_range=x_range,y_range=y_range)
+    segment_line = tem.line_to_Segmentline(line_detail, x_range=x_range, y_range=y_range)
+    
     if not segment_line:
         return False
+    
     segment_line_locations=tem.Segmentline_get_info(segment_line)['location']
     tem.Segmentline_remove_by_chain(segment_line)
 
@@ -1597,10 +1617,9 @@ def draw_directed_line(line_detail_dict, color=py5.color(10, 10, 0, 255), stroke
     #正方向线段处理
     positive_segment_line = tem.Segmentline_drop(line_detail_dict['location_point'], positive_point, **input_value)
     positive_segment_line_dict = tem.Segmentline_get_info(positive_segment_line)
-    color_trans_segment_line_dicts = (
-        _color_transition_segment_line(positive_segment_line_dict, **input_value,minimum=minimum))
+    color_trans_segment_line_dicts = _color_transition_segment_line(positive_segment_line_dict, **input_value,minimum=minimum)
     #alpha输入120的时候出错了!
-    screen_draw(Seglinedic= color_trans_segment_line_dicts)
+    screen_draw(Seglinedic=color_trans_segment_line_dicts)
 
     #负方向线段处理
     negative_segment_line = tem.Segmentline_drop(negative_point, line_detail_dict['location_point'], **input_value)
@@ -1748,13 +1767,17 @@ def screen_draw_lines(lines_dic, color=py5.color(10, 10, 0, 255), stroke_weight=
 
 def screen_draw_directed_line(directed_line_dict_or_list,color,stroke_weight=3):
     skip_times=0
-    if isinstance(directed_line_dict_or_list,dict):
+    if isinstance(directed_line_dict_or_list, dict):
         lines = list(directed_line_dict_or_list.values())
-    else:lines = directed_line_dict_or_list
-    Line_num = len(lines)
+    else:
+        lines = directed_line_dict_or_list
+        
+    print('='*40)
+    print(lines)
+    print('='*40)
     for line in lines:
-        if draw_directed_line(line,color=color,stroke_weight=stroke_weight) is False:
-            skip_times=skip_times+1
+        if not draw_directed_line(line,color=color,stroke_weight=stroke_weight):
+            skip_times += 1
     # if skip_times !=0:
     #     print(f'本次跳过了{skip_times}条线,绘制:{Line_num-skip_times}/{Line_num}条')
 
@@ -1786,10 +1809,9 @@ def screen_draw(f=3, Seglinedic=None, surfdic=None):
 def screen_print_fps():
     py5.fill(0)  # 设置文本颜色为黑色
     py5.text_size(16)  # 设置文本大小
-    frame=py5.get_frame_rate()
-    py5.text(f"FPS: {frame}", 10, 30)
+    py5.text(f"FPS: {py5.get_frame_rate()}", 10, 30)
 
-def screen_get_info():
+def screen_get_info(): # To tuple
     """
     返回一个关于屏幕详细信息的字典
     包含:
