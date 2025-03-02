@@ -6,8 +6,19 @@ def process_chunk(chunk):
     return sum(x * x for x in chunk)
 
 if __name__ == '__main__':
+<<<<<<< HEAD
     num_processes = multiprocessing.cpu_count()  # Use all available CPUs
     data = list(range(num_processes * 10000000))
+=======
+
+    #尽量用NP模块,因为优化更好
+
+    num_processes = round(multiprocessing.cpu_count() * 0.9) # Use all available CPUs
+    print(num_processes)
+    #尽量别用全,全部使用会导致其他软件延迟.
+
+    data = list(range(num_processes * 30000000))
+>>>>>>> 583a99dd93f1cbca7ce01ffd98bafc4ab4beaa18
 
     # Split data into chunks for multiprocessing
     chunk_size = len(data) // num_processes

@@ -1,361 +1,382 @@
-# import gird
-import py5
-import json
-import numpy as np
-from YuSan_PY5_Toolscode import Tools2D
+if __name__ == "__main__":
+    from the_control import *
+from YuSan_PY5_Toolscode import *
+
+class BruijnsTilling:
+    def __init__(self,girds_data=None,sides=5,shifted_distance=50,gap=100,center=(100, 100),num_of_line=15):
+        if girds_data:
+            self.girds_data = girds_data
+        else:
+            self.girds_data = self.create_gird(sides=sides,shifted_distance=shifted_distance,gap=gap,center=center,num_of_line=num_of_line)
+        self.interaction_data_point_location: dict[tuple[float | int]:list[int]] ={} # 按坐标点聚合的线段id信息
+        self.interaction_data_line_id: dict[tuple[int]:list[float | int]] ={} # 按线段id聚合的坐标点信息
+        self.get_girds_interaction()
+        print(f'共有:{len(self.interaction_data_point_location)}个点')
 
 
-def distance_line_dict(line_dict, center=(250, 250)):
-    """
-    center：以某一点为中心求距离
-    返回一个以距离作为key的line字典
-    用于重新排序line字典便于进行tilling
-    ！如果距离相同会返回列表型的Values
-    """
-    t = Tools2D()
-    back_line_dict = {}
-    rename = 0
+    def get_girds_interaction(self):
+        """
+        查找两个line字典之间的所有焦点
+        输入值:((vector):{0:line_dict,1:xx,-1:xx},():{0:xx,1:xx,-1:xx})
+        输出值:{ (p_x,p_y):[{v:v,n:n},{v_info}],[_x,_y]:[...],.. }
+        最后自动按照向量方向来排序(从反方向-->正方向排队)
+        """
+        from YuSan_PY5_Toolscode import Tools2D
+        tools = Tools2D()
+        girds_list = [i['girds'] for i in self.girds_data]
 
-    for key, value in line_dict.items():
-        the_distance = t.distance_point_to_line(point=center, line=value)
-        if the_distance in back_line_dict:
-            if isinstance(back_line_dict[the_distance], list):
-                # 如果已经是列表，将值添加到列表中
-                back_line_dict[the_distance].append(value.copy())
+        #清空已有
+        if self.interaction_data_point_location:
+            self.interaction_data_point_location={}
+        if self.interaction_data_line_id:
+            self.interaction_data_point_location = {}
+
+        for t_out, out_gird in enumerate(girds_list[:-1]):
+            for t_in, in_gird in enumerate(girds_list[t_out + 1:], start=t_out + 1):
+                for number_out, line_detail_out in out_gird.items():
+                    for number_in, line_detail_in in in_gird.items():
+                        interaction_point = tools.intersection_2line(line_detail_out, line_detail_in)
+                        if interaction_point is None:
+                            continue
+
+                        # 新数据结构处理 (使用元组作为复合键)
+                        # 处理外层线段 (t_out, number_out)
+                        key_out = (t_out, number_out)
+                        if key_out not in self.interaction_data_line_id:
+                            self.interaction_data_line_id[key_out] = []
+                        self.interaction_data_line_id[key_out].append(interaction_point)
+
+                        # 处理内层线段 (t_in, number_in)
+                        key_in = (t_in, number_in)
+                        if key_in not in self.interaction_data_line_id:
+                            self.interaction_data_line_id[key_in] = []
+                        self.interaction_data_line_id[key_in].append(interaction_point)
+
+                        # 保留原坐标点维度聚合逻辑
+                        point_key = tuple(interaction_point)
+                        if point_key not in self.interaction_data_point_location:
+                            self.interaction_data_point_location[point_key] = []
+                        self.interaction_data_point_location[point_key].extend([
+                            (t_out,number_out),
+                            (t_in,number_in)
+                        ])
+
+        self._sort_girds_interaction()
+        # interaction_data_point_location 结构示例
+        # {
+        #     (0, 0): [[x1, y1], [x2, y2], ...],  # gird_data[0]中girds键下0号线段的所有交点
+        #     (1, -1): [[x3, y3]],  # gird_data[1]中girds键下-1号线段的交点
+        #     (2, 1): [...]  # gird_data[2]中girds键下1号线段的交点
+        # }
+
+    def _sort_girds_interaction(self):
+        # 指向1象限是x自小到大排列(+,+)=+,指向2象限是x自大到小排列(-,+)=-
+        # 指向3象限是x自大到小排列(-,-)=-,指向4象限是x自小到大排列(+,-)=+
+        #y:         +                          +
+        #           -                          -
+        # 综上
+        # 只需要判断 pen_origin_vector 的x符号,为正就是从小到大,为负就是从大到小
+        # 为0就判断y的符号,为正就是y从小到大,为负就是从大到小
+
+        inter_data = self.interaction_data_point_location
+        reverse_data={}
+        #line_id 例: (a,b) --> girds_data[a]['girds'][b]
+        for point,line_id_list in inter_data.items():
+            for line_id in line_id_list:
+
+                if not isinstance(line_id,tuple):
+                    line_id=tuple(line_id)#防止传入的是列表导致错误
+
+                if line_id not in reverse_data:
+                    reverse_data[line_id]=[]
+                reverse_data[line_id].append(point)
+
+        for line_id,points in reverse_data.items():
+            data_id,girds_id = line_id[0],line_id[1]
+            line=self.girds_data[data_id]['girds'][girds_id]
+            direction_vector = line['direction_vector']
+            x,y = direction_vector
+
+            points=np.array(points)
+            if not x==0:
+                sorted_indices = np.argsort(np.sign(x)*points[:, 0]) #根据x坐标
+            elif not y==0:
+                sorted_indices = np.argsort(np.sign(y)*points[:, 1])  # 根据x坐标
+            else:continue
+            sorted_points = points[sorted_indices].tolist()
+            reverse_data[line_id]=sorted_points
+        self.interaction_data_line_id = reverse_data
+
+    @staticmethod
+    def get_tilling_information(gird_origin_vectors, vectors):
+        """
+        这是一个辅助函数,获得拼接图形的顺序,根据顺序可以拼接出闭合的多边形
+        all_vectors_list是顺时针排列的origin_vector
+        vector_list是当前交点的vectors信息
+        返回一个列表,是拼接的顺序,可以按照这个顺序拼接出闭合多边形
+        """
+        # 例:1,2,3,4,5
+        # 360/10=36-->180/36=5
+        # 180/360/10-->5
+        # 1,-4, 2,-5, 3,-1, 4,-2, 5,-3
+
+        # 360/6=60-->180/60=3
+        # 180/360/side*2=3
+        #   ||
+        # 间隔数目=sides
+        #
+        # 转换为:list[0]:1 list[2]:2 list[4]=3 list[6]=4 list[8]=5
+        # list[(0+5)%10=5]=-1 list[(2+5)%10=7]=-2 list[(4+5)%10=9]=-3
+        # list[(6+5)%10=1]=-4  list[(8+5)%10=3]=-5
+
+        # gird_origin_vectors 必须是顺时针排列
+
+        # def _sort_clockwise(the_vectors):
+        #     """使用向量叉积进行顺时针排序"""
+        #     center = np.mean(the_vectors, axis=0)
+        #     return sorted(the_vectors, key=lambda v: np.arctan2(v[1] - center[1], v[0] - center[0]))
+
+        # 转换成元组方便使用集合方法
+        the_origin_vectors = [tuple(vector) for vector in gird_origin_vectors]
+        vectors_set = {tuple(vector) for vector in vectors}
+        sides = len(the_origin_vectors)
+        if sides % 2 != 0:  # 奇数
+            temp_list:list[tuple|list] = [[None]] * sides * 2
+
+            for i, the_vector in enumerate(the_origin_vectors):
+                if the_vector in vectors_set:
+                    temp_list[2 * i] = the_vector
+                    temp_list[(2 * i + sides) % (sides * 2)] = (-the_vector[0], -the_vector[1])
+            tilling_vectors = [a_vector for a_vector in temp_list if a_vector[0] is not None]
+
+        else:  # 偶数
+            back_list_positive = [the_vector for the_vector in the_origin_vectors if the_vector in vectors_set]
+            back_list_negative = [(-the_vector[0], -the_vector[1])
+                                  for the_vector in the_origin_vectors if the_vector in vectors_set]
+            # 考虑十字情况,有时正向量和反向量重复,合并的时候需要判断是否重复
+            tilling_vectors = back_list_positive + [negative_v for negative_v in back_list_negative
+                                                    if negative_v not in back_list_positive]
+
+        # tilling_vectors只是移动的路径,需要绘制成坐标点
+        tilling_vectors_np = np.array(tilling_vectors)
+        cumulative_sum = np.cumsum(tilling_vectors_np, axis=0)
+        tilling = cumulative_sum.tolist()
+
+        # 防止出现无穷小数
+        tilling = [[Tools2D.reduce_errors(vector[0]), Tools2D.reduce_errors(vector[1])] for vector in tilling]
+
+        # 此处一并返回原vector,方便拼接.
+        # vector_o[0]是 tilling[-1]和[0] (开头和末尾)
+        # vector_o[1]是[0]和[1] (第一个和第二个)-->以此类推
+        tilling_dict_positive = {}
+        tilling_dict_negative = {}
+        #{(tuple(vectors[0])): [tilling[-1], tilling[0]]}
+        for t, vector in enumerate(tilling_vectors, start=0):
+            if tuple(vector) in vectors_set:
+                tilling_dict_positive[tuple(vector)] = [tilling[t - 1], tilling[t]]
             else:
-                # 如果当前值不是列表，转换为列表
-                back_line_dict[the_distance] = [back_line_dict[the_distance], value.copy()]
-            continue
-        back_line_dict[the_distance] = value.copy()
-    back_line_dict = dict(sorted(back_line_dict.items()))  # 从小到大排序
-    return back_line_dict
+                tilling_dict_negative[tuple(vector)] = [tilling[t - 1], tilling[t]]
+        return tilling_dict_positive,tilling_dict_negative
+
+    # def get_next_
+
+    def splice_tilling(self,interaction_point_location,spliced_inter=()):
+        """
+
+        """
+        # <think>一个交点具有两个向量,相应的具有:四个方向
+        tem = Tools2D()
+        spliced_inter=[list(i)for i in list(spliced_inter)]
+        data_point = self.interaction_data_point_location
+        o_vector = [i['origin_vector'] for i in self.girds_data]
+        if isinstance(interaction_point_location,list):
+            interaction_point_location=tuple(interaction_point_location)
+        print(f'splice_tilling输入:{interaction_point_location}')
+        if not interaction_point_location in data_point:
+            raise ValueError (f"interaction_data_point_location中未找到点{interaction_point_location}")
+
+
+        inter_lines_index_num:list[int,int] = data_point[interaction_point_location]
+        now_vector: list[tuple[int | float]] = [tuple(o_vector[i]) for i,_ in inter_lines_index_num]
+        # 获取自己的tilling形状
+        o_positive_sides,o_negative_sides = self.get_tilling_information(o_vector,now_vector)
+        origin_tilling:dict[tuple:list[list]] = o_positive_sides | o_negative_sides
+        return_list = list(origin_tilling.values())
+        #查询正方向的点和负方向的点
+        data_line_id = self.interaction_data_line_id
+
+        next_points_list:list[tuple[list,bool]] = []
+        for line_id in inter_lines_index_num:
+            list_index = data_line_id[line_id].index(list(interaction_point_location))
+            #查询字典中的前后,字典中已经按照线的方向顺序排好了
+            _next:list[tuple[int, bool]] = [(1,True),(-1,False)]
+            for i,b in _next:
+                try:next_point = data_line_id[line_id][list_index+i]
+                except IndexError:
+                    warnings.warn('超出范围')
+                    continue
+                if not any([next_point in spliced_inter,tuple(next_point) in spliced_inter]):
+                    next_points_list.append((next_point,b))
+                    # spliced_inter.append(next_point)
+
+        return_info:list[dict] = []
+        for next_point,is_positive in next_points_list:
+            next_vectors = [tuple(o_vector[index]) for index,_ in data_point[tuple(next_point)]]
+            next_positive_sides,next_negative_sides = self.get_tilling_information(o_vector,next_vectors)
+            next_sides = next_positive_sides|next_negative_sides
+
+            target_side = set(now_vector)&set(next_vectors)
+            if len(target_side)==1:
+                target_side = target_side.pop()
+            else:
+                warnings.warn(f'当前的拼块的向量信息:{now_vector},下一个拼块{next_vectors}')
+                continue
+                # target_side = random.choice(list(target_side))
+                # raise ValueError(f"获取到不止一条的共线,无法拼接:{target_side}")
+
+            if is_positive:up_sign = 1
+            else:up_sign = -1
+            # 因为是正方向, 正向量形成的点和下一个的负方向对齐,负方向反之 负方向对应的线和next正方向的对其
+
+            collinear_in_now =  origin_tilling[(up_sign*target_side[0],up_sign*target_side[1])]
+            collinear_in_next = next_sides.pop( (-up_sign*target_side[0], -up_sign*target_side[1]) )
+
+            #因为方向相反,交叉求shift距离
+            t_now, _ = collinear_in_now
+            _,t_next = collinear_in_next
+            shift_vector = [t_now[0] - t_next[0], t_now[1] - t_next[1]]
+            return_info.append({'shifted':shift_vector,'spliced_inter':next_point})
+            new_seg_line_list = list(next_sides.values())
+            for segment_line in new_seg_line_list:
+                #平移到指定位置来和now_tilling拼合
+                return_list.append(tem.point_shift(segment_line, shift_vector))
+        # print(spliced_inter)
+        # print(f'splice_tilling:{return_list}')
+        return  return_info,return_list
+
+    def create_tilling(self,start_inter_point:tuple,num=10):
+
+        now_tilling = []
+        used_points = []
+        next_depth_points_info = [{'shifted':[0,0],'last_shifted':[0,0],'spliced_inter':start_inter_point}]
+
+        for this_dict in next_depth_points_info:
+            print(f'进入循环,本次:{this_dict},num:{num}')
+
+            return_info,return_tilling = self.splice_tilling(this_dict['spliced_inter'],used_points)
+            if not (return_info or return_tilling):
+                warnings.warn('缺少返回值')
+                continue
+            used_points.append(this_dict['spliced_inter'])
+            print(f'刚刚进行了splice_tilling:{this_dict['spliced_inter']},获得信息{return_info}')
+
+            return_tilling_shifted = [Tools2D.point_shift(i, this_dict['last_shifted']) for i in return_tilling]
+            now_tilling = now_tilling + return_tilling_shifted
+            print(f'++++依照{this_dict['last_shifted']}+++\n对return_tilling:{return_tilling}\n进行平移:{return_tilling_shifted}')
+            for next_point_dict in return_info:
+                next_point_dict['last_shifted']=Tools2D.point_shift(this_dict['last_shifted'],next_point_dict['shifted'])
+                print(f'当前last_shifted:{this_dict['last_shifted']},新的shifted:{next_point_dict['shifted']},得到:{next_point_dict['last_shifted']}')
+                next_depth_points_info.append(next_point_dict)
+
+            num = num -1
+            if num <= 0:
+                break
+
+        return now_tilling
+
+
+
+    @staticmethod
+    def create_gird(sides, shifted_distance=0, gap=100, center=(100, 100), num_of_line=50):
+        """
+        此函数用于创建一组网格系统
+        distance：初始向量取垂直线以后，相互远离的距离。
+        zoom：每条网格线相隔的距离
+        返回一个列表，每个列表中包含一个方向的平行网格线，由所有网格线组成一个gird
+        """
+
+        tools = Tools2D()
+        return_girds_data = []
+
+        # 在【0，0】创建一个多边形,返回点集到vector
+        vectors_origin = tools.regular_polygon(sides=sides, side_length=30)
+        return_girds_data = [{'origin_vector': o_v} for o_v in vectors_origin]
+
+        # 取vector的垂直向量vector_pen
+        vectors_origin_pen = [tools.vector_rotate(the_vector, 90) for the_vector in vectors_origin]
+        for t, p_o_v in enumerate(vectors_origin_pen):
+            return_girds_data[t]['pen_origin_vector'] = p_o_v
+
+        # 定义有向直线:
+        for d_v in vectors_origin_pen:
+            tools.directed_line_drop(location_point=center, direction_vector=d_v)
+
+        origin_directed_lines = tools.get_line_dic()
+        origin_directed_lines_id = list(origin_directed_lines.keys())
+
+        for times, origin_line_id in enumerate(origin_directed_lines_id):
+            # 按照vector的方向,改变vector的模长-->获得平移向量distance_vector
+            # TODO 此处模长可以不用以相同数值平移,可以存在长度差,应该再增加一个参数调整长度差
+            distance_shift_vector = tools.vector_change_norm(vectors_origin[times], shifted_distance)
+            return_girds_data[times]['shift_vector_based_distance'] = distance_shift_vector
+            tools.line_shift(origin_line_id, distance_shift_vector, rewrite=True, drop=False)
+
+        origin_directed_lines = list(tools.get_line_dic().values())  # 取出的直线数据,准备平移
+        for t, o_d_line in enumerate(origin_directed_lines):
+            return_girds_data[t]['origin_directed_line'] = o_d_line
+        tools.reset()  # 清除内容
+
+        # 平移gird_0，构建平行网格gird
+        for t, line_dict in enumerate(origin_directed_lines):  # 遍历原始gird每一条线
+            return_girds_data[t]['girds'] = {0: return_girds_data[t]['origin_directed_line']}
+            for the_time, i in enumerate(range(1, (num_of_line - 1) // 2 + 1)):  # (num_of_line-1)是因为去掉原始line的1,
+                # 最后+1是因为range不包括最后一项
+
+                # vector_origin的顺序和origin_lines的方向是一致的, 长度取zoom的倍数即可
+                positive_vector = tools.vector_change_norm(vectors_origin[t], gap * i)
+                negative_vector = tools.vector_change_norm(vectors_origin[t], gap * -i)
+
+                # 和origin_vector同方向的为正,反方向的为负
+                line_positive_detail = tools.line_shift(line_dict, positive_vector, rewrite=False, drop=False)
+                line_negative_detail = tools.line_shift(line_dict, negative_vector, rewrite=False, drop=False)
+
+                return_girds_data[t]['girds'][the_time + 1] = line_positive_detail  # 命名方式1,2,3...
+                return_girds_data[t]['girds'][-(the_time + 1)] = line_negative_detail  # -1,-2,-3...
+
+        # print(f'\nback_list:\n')
+        # for t, i in enumerate(back_list):
+        #     print(f'\n{t}:\n{i}')
+        print('完整输出:')
+        print(return_girds_data)
+        return return_girds_data
 
 def setup():
     py5.size(500, 500)
+    s_v= screen_axis(0,0)
+    for seg_line in tilling_data:
+        A_P,B_P=tool.point_shift(seg_line,s_v)
+        tool.Segmentline_drop(A_P, B_P)
+    load()
+    slider('num', [50, py5.height - 120], value=5, range=[1, 800],size=[400,30])
 
 def draw():
+    global  tilling_data
+    s_v = screen_axis(0, 0)
     py5.background(155)
+    back = slider_value()
+    if back is not None:
+        tool.reset()
+        tilling_data = till.create_tilling(the_p, num=back['num'])
+        for seg_line in tilling_data:
+            A_P, B_P = tool.point_shift(seg_line, s_v)
+            tool.Segmentline_drop(A_P, B_P)
 
-def get_girds_interaction(girds_dict):
-    """
-    查找两个line字典之间的所有焦点
-    输入值:((vector):{0:line_dict,1:xx,-1:xx},():{0:xx,1:xx,-1:xx})
-    输出值:{ (p_x,p_y):[{v:v,n:n},{v_info}],[_x,_y]:[...],.. }
-    """
+    screen_draw_SegmentLine(tool.get_Segmentline_dic(),0)
 
-    tools = Tools2D()
-    vectors_list = list(girds_dict.keys())
-    lines_dict_list = list(girds_dict.values())
-
-    interaction_dict = {}
-    for t_out, vector_A in enumerate(vectors_list[:-1]):  # 循环向量列表 切掉最后一项
-        if vector_A not in interaction_dict:
-            interaction_dict[vector_A] = {}
-            # TODO 可以修改不用重新转换格式,而是一次性生成
-        for t_in, vector_B in enumerate(vectors_list[t_out + 1:]):  # 循环向量列表 切掉当前项
-            # {(vectorx,y):{}}
-            if vector_B not in interaction_dict:
-                interaction_dict[vector_B] = {}
-            for number_A, line_detail_A in lines_dict_list[t_out].items():
-                for number_B, line_detail_B in lines_dict_list[(t_out + 1) + t_in].items():
-                    interaction_point = tools.intersection_2line(line_detail_A, line_detail_B)
-
-                    if interaction_point is None: continue
-
-                    if number_A not in interaction_dict[vector_A]:
-                        interaction_dict[vector_A][number_A] = []
-                    interaction_dict[vector_A][number_A].append(interaction_point)
-
-                    if number_B not in interaction_dict[vector_B]:
-                        interaction_dict[vector_B][number_B] = []
-                    interaction_dict[vector_B][number_B].append(interaction_point)
-                    # {(vectorx,y):{1:[[x,y],[x,y]],2:[...],..}..}
-    # print('interaction_dict',interaction_dict)
-
-    back_points_dict = {}
-    for vector, num_dict in interaction_dict.items():
-        for num, points_list in num_dict.items():
-            for point in points_list:
-                point = tuple(point)  # list不能做字典键
-                if point not in back_points_dict:
-                    back_points_dict[point] = []
-                interaction_detail = {'vector': vector, 'num': num}
-                back_points_dict[point].append(interaction_detail)
-                # { (p_x,y):[{..},{..}],[p_x,y]:[...],.. }
-    return back_points_dict
-
-def get_tilling_information(gird_origin_vectors, vectors):
-    """
-    这是一个辅助函数,获得拼接图形的顺序,根据顺序可以拼接出闭合的多边形
-    all_vectors_list是顺时针排列的origin_vector
-    vector_list是当前交点的vectors信息
-    返回一个列表,是拼接的顺序,可以按照这个顺序拼接出闭合多边形
-    """
-    # 例:1,2,3,4,5
-    # 360/10=36-->180/36=5
-    # 180/360/10-->5
-    # 1,-4, 2,-5, 3,-1, 4,-2, 5,-3
-
-    # 360/6=60-->180/60=3
-    # 180/360/side*2=3
-    #   ||
-    # 间隔数目=sides
-    #
-    # 转换为:list[0]:1 list[2]:2 list[4]=3 list[6]=4 list[8]=5
-    # list[(0+5)%10=5]=-1 list[(2+5)%10=7]=-2 list[(4+5)%10=9]=-3
-    # list[(6+5)%10=1]=-4  list[(8+5)%10=3]=-5
-    # TODO 目前all_vectors_list必须是顺时针排列,应该增加一个矩阵点乘来排列
-
-    # 转换成元组方便使用集合方法
-    the_origin_vectors = [tuple(vector) for vector in gird_origin_vectors]
-    vectors_set = {tuple(vector) for vector in vectors}
-
-    sides = len(the_origin_vectors)
-    if sides % 2 != 0:  # 奇数
-        print('进入奇数处理')
-        temp_list = [None] * sides * 2
-        for i, the_vector in enumerate(the_origin_vectors):
-            if the_vector in vectors_set:
-                temp_list[2 * i] = the_vector  # noqa
-                temp_list[(2 * i + sides) % (sides * 2)] = (-the_vector[0], -the_vector[1])  # noqa
-        tilling_vectors = [a_vector for a_vector in temp_list if a_vector is not None]
-
-    else:  # 偶数
-        back_list_positive = [the_vector for the_vector in the_origin_vectors if the_vector in vectors_set]
-        back_list_negative = [(-the_vector[0], -the_vector[1])
-                              for the_vector in the_origin_vectors if the_vector in vectors_set]
-        # 考虑十字情况,有时正向量和反向量重复,合并的时候需要判断是否重复
-        tilling_vectors = back_list_positive + [negative_v for negative_v in back_list_negative
-                                                if negative_v not in back_list_positive]
-
-    # tilling_vectors只是移动的路径,需要绘制成坐标点
-    tilling_vectors_np = np.array(tilling_vectors)
-    cumulative_sum = np.cumsum(tilling_vectors_np, axis=0)
-    tilling = cumulative_sum.tolist()
-
-    tem=Tools2D() #防止出现无穷小数
-    tilling = [ [tem.reduce_errors(num=vector[0]),tem.reduce_errors(vector[1])] for vector in tilling]
-
-
-    # 此处一并返回原vector,方便拼接.
-    # vector_o[0]是 tilling[-1]和[0] (开头和末尾)
-    # vector_o[1]是[0]和[1] (第一个和第二个)-->以此类推
-    tilling_dict = {(tuple(vectors[0])): [tilling[-1], tilling[0]]}
-    tilling_dict = tilling_dict | {(tuple(vector)): [tilling[t - 1], tilling[t]]  # noqa
-                                   for t, vector in enumerate(tilling_vectors[1:], start=1)}  # 切掉了0 这样t不会超出index
-
-    return tilling_dict
-
-def splice_tilling(tilling_info_a, tilling_info_b, positive_direction):
-    """
-    start_interaction:某一个交点
-    direction,拼接方向
-    """
-    # <think>一个交点具有两个向量,相应的具有:四个方向
-    # TODO 在gird上面行走 例:一个交点是两条直线相交形成的,那么有4中行走方向(A正,A负,B正,B负)
-    print()
-
-gird_dict = {
-    (0, 25.519524250561197): {0: {'str': 'y=315.0', 'k': 0, 'b': 315.0}, 1: {'str': 'y=465.0', 'k': 0, 'b': 465.0},
-                              -1: {'str': 'y=165.0', 'k': 0, 'b': 165.0}}, (-24.27050983124842, 7.885966681787004): {
-        0: {'str': 'y=3.08x-882.53', 'k': 3.0776835371752527, 'b': -882.5323952076043},
-        1: {'str': 'y=3.08x-397.12', 'k': 3.0776835371752527, 'b': -397.12219858263586},
-        -1: {'str': 'y=3.08x-1367.94', 'k': 3.0776835371752527, 'b': -1367.9425918325728}},
-    (-15.000000000000002, -20.6457288070676): {
-        0: {'str': 'y=-0.73x+572.08', 'k': -0.7265425280053612, 'b': 572.0759915396478},
-        1: {'str': 'y=-0.73x+386.67', 'k': -0.7265425280053612, 'b': 386.66579491467934},
-        -1: {'str': 'y=-0.73x+757.49', 'k': -0.7265425280053612, 'b': 757.4861881646164}},
-    (14.999999999999996, -20.645728807067602): {
-        0: {'str': 'y=0.73x-9.16', 'k': 0.7265425280053607, 'b': -9.158030864641127},
-        1: {'str': 'y=0.73x-194.57', 'k': 0.7265425280053607, 'b': -194.56822748960957},
-        -1: {'str': 'y=0.73x+176.25', 'k': 0.7265425280053607, 'b': 176.25216576032733}},
-    (24.270509831248425, 7.885966681786999): {
-        0: {'str': 'y=-3.08x+1579.61', 'k': -3.0776835371752562, 'b': 1579.6144345325993},
-        1: {'str': 'y=-3.08x+2065.02', 'k': -3.0776835371752562, 'b': 2065.0246311575684},
-        -1: {'str': 'y=-3.08x+1094.2', 'k': -3.0776835371752562, 'b': 1094.2042379076304}}}
-origin_vectors = list(gird_dict.keys())
-# back = get_girds_interaction(gird_dict)
-# print(back)
-back = {(389.10186207991956, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
-                                      {'vector': (-24.27050983124842, 7.885966681787004), 'num': 0}],
-        (231.38252844417948, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
-                                      {'vector': (-24.27050983124842, 7.885966681787004), 'num': 1}],
-        (546.8211957156598, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
-                                     {'vector': (-24.27050983124842, 7.885966681787004), 'num': -1}],
-        (353.83474694237145, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
-                                      {'vector': (-15.000000000000002, -20.6457288070676), 'num': 0}],
-        (98.63950443675957, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
-                                     {'vector': (-15.000000000000002, -20.6457288070676), 'num': 1}],
-        (609.0299894479834, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
-                                     {'vector': (-15.000000000000002, -20.6457288070676), 'num': -1}],
-        (446.16525305762883, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
-                                      {'vector': (14.999999999999996, -20.645728807067602), 'num': 0}],
-        (701.3604955632409, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
-                                     {'vector': (14.999999999999996, -20.645728807067602), 'num': 1}],
-        (190.97001055201676, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
-                                      {'vector': (14.999999999999996, -20.645728807067602), 'num': -1}],
-        (410.8981379200804, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
-                                     {'vector': (24.270509831248425, 7.885966681786999), 'num': 0}],
-        (568.6174715558205, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
-                                     {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
-        (253.17880428434032, 315.0): [{'vector': (0, 25.519524250561197), 'num': 0},
-                                      {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}],
-        (437.8398165148555, 465.0): [{'vector': (0, 25.519524250561197), 'num': 1},
-                                     {'vector': (-24.27050983124842, 7.885966681787004), 'num': 0}],
-        (280.12048287911546, 465.0): [{'vector': (0, 25.519524250561197), 'num': 1},
-                                      {'vector': (-24.27050983124842, 7.885966681787004), 'num': 1}],
-        (595.5591501505957, 465.0): [{'vector': (0, 25.519524250561197), 'num': 1},
-                                     {'vector': (-24.27050983124842, 7.885966681787004), 'num': -1}],
-        (147.37745887169552, 465.0): [{'vector': (0, 25.519524250561197), 'num': 1},
-                                      {'vector': (-15.000000000000002, -20.6457288070676), 'num': 0}],
-        (-107.81778363391636, 465.0): [{'vector': (0, 25.519524250561197), 'num': 1},
-                                       {'vector': (-15.000000000000002, -20.6457288070676), 'num': 1}],
-        (402.5727013773075, 465.0): [{'vector': (0, 25.519524250561197), 'num': 1},
-                                     {'vector': (-15.000000000000002, -20.6457288070676), 'num': -1}],
-        (652.622541128305, 465.0): [{'vector': (0, 25.519524250561197), 'num': 1},
-                                    {'vector': (14.999999999999996, -20.645728807067602), 'num': 0}],
-        (907.8177836339171, 465.0): [{'vector': (0, 25.519524250561197), 'num': 1},
-                                     {'vector': (14.999999999999996, -20.645728807067602), 'num': 1}],
-        (397.4272986226929, 465.0): [{'vector': (0, 25.519524250561197), 'num': 1},
-                                     {'vector': (14.999999999999996, -20.645728807067602), 'num': -1}],
-        (362.1601834851445, 465.0): [{'vector': (0, 25.519524250561197), 'num': 1},
-                                     {'vector': (24.270509831248425, 7.885966681786999), 'num': 0}],
-        (519.8795171208847, 465.0): [{'vector': (0, 25.519524250561197), 'num': 1},
-                                     {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
-        (204.4408498494044, 465.0): [{'vector': (0, 25.519524250561197), 'num': 1},
-                                     {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}],
-        (340.3639076449836, 165.0): [{'vector': (0, 25.519524250561197), 'num': -1},
-                                     {'vector': (-24.27050983124842, 7.885966681787004), 'num': 0}],
-        (182.64457400924354, 165.0): [{'vector': (0, 25.519524250561197), 'num': -1},
-                                      {'vector': (-24.27050983124842, 7.885966681787004), 'num': 1}],
-        (498.08324128072377, 165.0): [{'vector': (0, 25.519524250561197), 'num': -1},
-                                      {'vector': (-24.27050983124842, 7.885966681787004), 'num': -1}],
-        (560.2920350130474, 165.0): [{'vector': (0, 25.519524250561197), 'num': -1},
-                                     {'vector': (-15.000000000000002, -20.6457288070676), 'num': 0}],
-        (305.0967925074355, 165.0): [{'vector': (0, 25.519524250561197), 'num': -1},
-                                     {'vector': (-15.000000000000002, -20.6457288070676), 'num': 1}],
-        (815.4872775186593, 165.0): [{'vector': (0, 25.519524250561197), 'num': -1},
-                                     {'vector': (-15.000000000000002, -20.6457288070676), 'num': -1}],
-        (239.70796498695273, 165.0): [{'vector': (0, 25.519524250561197), 'num': -1},
-                                      {'vector': (14.999999999999996, -20.645728807067602), 'num': 0}],
-        (494.9032074925648, 165.0): [{'vector': (0, 25.519524250561197), 'num': -1},
-                                     {'vector': (14.999999999999996, -20.645728807067602), 'num': 1}],
-        (-15.487277518659317, 165.0): [{'vector': (0, 25.519524250561197), 'num': -1},
-                                       {'vector': (14.999999999999996, -20.645728807067602), 'num': -1}],
-        (459.6360923550163, 165.0): [{'vector': (0, 25.519524250561197), 'num': -1},
-                                     {'vector': (24.270509831248425, 7.885966681786999), 'num': 0}],
-        (617.3554259907564, 165.0): [{'vector': (0, 25.519524250561197), 'num': -1},
-                                     {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
-        (301.91675871927623, 165.0): [{'vector': (0, 25.519524250561197), 'num': -1},
-                                      {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}],
-        (382.3664424312259, 294.27050983124866): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 0},
-                                                  {'vector': (-15.000000000000002, -20.6457288070676), 'num': 0}],
-        (333.62848799628995, 144.27050983124866): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 0},
-                                                   {'vector': (-15.000000000000002, -20.6457288070676), 'num': 1}],
-        (431.1043968661619, 444.27050983124866): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 0},
-                                                  {'vector': (-15.000000000000002, -20.6457288070676), 'num': -1}],
-        (371.4683045111454, 260.72949016875157): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 0},
-                                                  {'vector': (14.999999999999996, -20.645728807067602), 'num': 0}],
-        (292.60863769327534, 18.024391856267357): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 0},
-                                                   {'vector': (14.999999999999996, -20.645728807067602), 'num': 1}],
-        (450.32797132901544, 503.43458848123566): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 0},
-                                                   {'vector': (14.999999999999996, -20.645728807067602), 'num': -1}],
-        (400.0, 348.54101966249675): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 0},
-                                      {'vector': (24.270509831248425, 7.885966681786999), 'num': 0}],
-        (478.8596668178701, 591.2461179749811): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 0},
-                                                 {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
-        (321.14033318212995, 105.83592135001254): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 0},
-                                                   {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}],
-        (254.7688211784199, 386.97560814373287): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 1},
-                                                  {'vector': (-15.000000000000002, -20.6457288070676), 'num': 0}],
-        (206.03086674348393, 236.97560814373287): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 1},
-                                                   {'vector': (-15.000000000000002, -20.6457288070676), 'num': 1}],
-        (303.50677561335584, 536.9756081437329): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 1},
-                                                  {'vector': (-15.000000000000002, -20.6457288070676), 'num': -1}],
-        (165.01101644046932, 110.72949016875151): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 1},
-                                                   {'vector': (14.999999999999996, -20.645728807067602), 'num': 0}],
-        (86.15134962259928, -131.97560814373264): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 1},
-                                                   {'vector': (14.999999999999996, -20.645728807067602), 'num': 1}],
-        (243.8706832583394, 353.4345884812358): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 1},
-                                                 {'vector': (14.999999999999996, -20.645728807067602), 'num': -1}],
-        (321.14033318213, 591.2461179749812): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 1},
-                                               {'vector': (24.270509831248425, 7.885966681786999), 'num': 0}],
-        (400.0000000000001, 833.9512162874656): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 1},
-                                                 {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
-        (242.2806663642599, 348.54101966249686): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': 1},
-                                                  {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}],
-        (509.96406368403194, 201.56541151876445): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': -1},
-                                                   {'vector': (-15.000000000000002, -20.6457288070676), 'num': 0}],
-        (461.22610924909594, 51.56541151876422): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': -1},
-                                                  {'vector': (-15.000000000000002, -20.6457288070676), 'num': 1}],
-        (558.7020181189679, 351.56541151876445): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': -1},
-                                                  {'vector': (-15.000000000000002, -20.6457288070676), 'num': -1}],
-        (577.9255925818214, 410.7294901687512): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': -1},
-                                                 {'vector': (14.999999999999996, -20.645728807067602), 'num': 0}],
-        (499.06592576395144, 168.02439185626736): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': -1},
-                                                   {'vector': (14.999999999999996, -20.645728807067602), 'num': 1}],
-        (656.7852593996915, 653.4345884812358): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': -1},
-                                                 {'vector': (14.999999999999996, -20.645728807067602), 'num': -1}],
-        (478.85966681787005, 105.83592135001254): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': -1},
-                                                   {'vector': (24.270509831248425, 7.885966681786999), 'num': 0}],
-        (557.7193336357401, 348.54101966249664): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': -1},
-                                                  {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
-        (400.0, -136.86917696247178): [{'vector': (-24.27050983124842, 7.885966681787004), 'num': -1},
-                                       {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}],
-        (400.00000000000006, 281.4589803375033): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': 0},
-                                                  {'vector': (14.999999999999996, -20.645728807067602), 'num': 0}],
-        (527.597621252806, 188.75388202501904): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': 0},
-                                                 {'vector': (14.999999999999996, -20.645728807067602), 'num': 1}],
-        (272.4023787471941, 374.1640786499875): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': 0},
-                                                 {'vector': (14.999999999999996, -20.645728807067602), 'num': -1}],
-        (428.53169548885444, 260.72949016875185): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': 0},
-                                                   {'vector': (24.270509831248425, 7.885966681786999), 'num': 0}],
-        (634.9889835595304, 110.7294901687518): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': 0},
-                                                 {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
-        (222.07440741817845, 410.7294901687519): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': 0},
-                                                  {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}],
-        (272.4023787471941, 188.75388202501904): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': 1},
-                                                  {'vector': (14.999999999999996, -20.645728807067602), 'num': 0}],
-        (400.00000000000006, 96.04878371253483): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': 1},
-                                                  {'vector': (14.999999999999996, -20.645728807067602), 'num': 1}],
-        (144.80475749438813, 281.4589803375033): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': 1},
-                                                  {'vector': (14.999999999999996, -20.645728807067602), 'num': -1}],
-        (507.39136230672443, 18.02439185626764): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': 1},
-                                                  {'vector': (24.270509831248425, 7.885966681786999), 'num': 0}],
-        (713.8486503774005, -131.97560814373247): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': 1},
-                                                   {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
-        (300.93407423604845, 168.02439185626764): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': 1},
-                                                   {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}],
-        (527.5976212528061, 374.1640786499875): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': -1},
-                                                 {'vector': (14.999999999999996, -20.645728807067602), 'num': 0}],
-        (655.1952425056121, 281.45898033750325): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': -1},
-                                                  {'vector': (14.999999999999996, -20.645728807067602), 'num': 1}],
-        (400.00000000000017, 466.8691769624717): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': -1},
-                                                  {'vector': (14.999999999999996, -20.645728807067602), 'num': -1}],
-        (349.67202867098445, 503.4345884812361): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': -1},
-                                                  {'vector': (24.270509831248425, 7.885966681786999), 'num': 0}],
-        (556.1293167416605, 353.43458848123606): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': -1},
-                                                  {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
-        (143.2147406003085, 653.4345884812362): [{'vector': (-15.000000000000002, -20.6457288070676), 'num': -1},
-                                                 {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}],
-        (417.6335575687742, 294.27050983124843): [{'vector': (14.999999999999996, -20.645728807067602), 'num': 0},
-                                                  {'vector': (24.270509831248425, 7.885966681786999), 'num': 0}],
-        (545.2311788215803, 386.9756081437327): [{'vector': (14.999999999999996, -20.645728807067602), 'num': 0},
-                                                 {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
-        (290.0359363159682, 201.5654115187642): [{'vector': (14.999999999999996, -20.645728807067602), 'num': 0},
-                                                 {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}],
-        (466.3715120037101, 144.27050983124838): [{'vector': (14.999999999999996, -20.645728807067602), 'num': 1},
-                                                  {'vector': (24.270509831248425, 7.885966681786999), 'num': 0}],
-        (593.9691332565161, 236.9756081437326): [{'vector': (14.999999999999996, -20.645728807067602), 'num': 1},
-                                                 {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
-        (338.7738907509041, 51.56541151876419): [{'vector': (14.999999999999996, -20.645728807067602), 'num': 1},
-                                                 {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}],
-        (368.8956031338382, 444.2705098312484): [{'vector': (14.999999999999996, -20.645728807067602), 'num': -1},
-                                                 {'vector': (24.270509831248425, 7.885966681786999), 'num': 0}],
-        (496.49322438664433, 536.9756081437326): [{'vector': (14.999999999999996, -20.645728807067602), 'num': -1},
-                                                  {'vector': (24.270509831248425, 7.885966681786999), 'num': 1}],
-        (241.29798188103226, 351.5654115187642): [{'vector': (14.999999999999996, -20.645728807067602), 'num': -1},
-                                                  {'vector': (24.270509831248425, 7.885966681786999), 'num': -1}]}
-print(origin_vectors)
-print(get_tilling_information(origin_vectors, [(0, 25.519524250561197), (-24.27050983124842, 7.885966681787004)]))
-# 输出结果:[[0, 25.519524250561197], [-24.27050983124842, 33.4054909323482], [-24.27050983124842, 7.8859666817870036], [0.0, -8.881784197001252e-16]]
+if __name__ == "__main__":
+    tool = Tools2D()
+    till = BruijnsTilling(sides=5, num_of_line=30)
+    the_p = till.interaction_data_line_id[(0, 0)][60]
+    print(f'选取交点:{the_p}')
+    tilling_data = till.create_tilling(the_p, num=1)
+    py5.run_sketch()
