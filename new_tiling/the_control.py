@@ -1,4 +1,7 @@
 import math
+
+import py5_tools
+py5_tools.add_jars('../jars')
 import py5
 from controlP5 import ControlP5
 
