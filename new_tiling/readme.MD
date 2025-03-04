@@ -53,6 +53,8 @@ TODO 奇数的origin_vector 会被自己的1/2细分 Penrose tiling另一个重�
 
 TODO 应该测试下 Tilling 同时绘制两个网格的效果
 
+TODO 之后Screen_draw应该加一个 内部变量 可以保存已经计算过的内容,这样不会每次在渲染之前重复计算
+
 TODO 调整gird 返回的 数据类型
 
 效果参考:
