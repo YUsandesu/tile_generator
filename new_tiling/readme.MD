@@ -26,7 +26,6 @@ https://link.springer.com/article/10.1007/s11224-016-0790-1?fromPaywallRec=true
 
 # 备忘录:
 
-<think>因为是以n平分2pi产生来的,所以使用最小单位 2pi/n 必定可以继续细分小Tilling,我应该沿着这个方向继续探索对于视觉效果中Tilling的细分问题.
 https://www.math.utah.edu/~treiberg/PenroseSlides.pdf
 本文28 开始讨论了PenroseTilling自相变换细分问题.
 
@@ -41,6 +40,16 @@ https://www.math.utah.edu/~treiberg/PenroseSlides.pdf
 Penrose tiling 具有自相似性，可以通过充气和收缩规则来生成和分析。研究 Bruijn's grid 方法如何体现充气和收缩规则是一个有趣的方向。
 
 # 当前进度:
+https://www.adamponting.com/de-bruijn-tilings/
+上文给出了一个全新的信息,**就算shift的距离不是相等的,创建的网络依然是可以平铺的**
+**甚至可以是不完全等分gird**
+我应该尝试思考为什么可以这样?
+
+TODO 优化Gird创建,实际我们需要的只是点的序列而不是具体位置,而点的序列由于间隔一定的问题**一定是相同**的.
+所以我们只需要求两条间隔的线在目标线的投影,就可以推导出点在目标线的序列
+
+
+TODO 奇数的origin_vector 会被自己的1/2细分 Penrose tiling另一个重要的自相似性特征——角度的递归细分
 
 TODO 应该测试下 Tilling 同时绘制两个网格的效果
 
@@ -49,3 +58,15 @@ TODO 调整gird 返回的 数据类型
 效果参考:
 https://www.instagram.com/p/CFe4yYBnuHS/
 ![节点风格.png](picture%2F%E8%8A%82%E7%82%B9%E9%A3%8E%E6%A0%BC.png)
+
+
+
+"Symmetry of Tilings of the Plane" by Branko Grünbaum and G. C. Shephard: 这本书的章节中关于 Penrose tiling 的部分，会详细介绍 kite 和 dart 的 deflation 规则，以及角度在 deflation 过程中的变化。
+
+"Penrose Tiles to Trapdoor Ciphers" by Martin Gardner (Scientific American, January 1977): 虽然是科普文章，但 Gardner 的文章是 Penrose tiling 早期非常重要的介绍，其中用清晰的图示解释了 kite 和 dart 的 deflation 过程。
+
+"The emperor's new mind: Concerning computers, minds, and the laws of physics" by Roger Penrose: Penrose 在这本书中也详细解释了 Penrose tiling，包括 kite 和 dart 以及 deflation 过程。
+
+"The Golden Ratio: The Story of Phi, the World's Most Astonishing Number" by Mario Livio: 这本书深入探讨了黄金分割比的数学和历史，包括它在 Penrose tiling 和黄金三角形中的应用。
+"Geometry and the Visual Arts" by Daniel Pedoe: 这本书探讨了几何学在艺术中的应用，包括黄金分割比和 Penrose tiling。
+"Penrose Tiles Talk" by Martin Gardner: 这篇文章以通俗易懂的方式介绍了 Penrose tiling 和黄金分割比。
