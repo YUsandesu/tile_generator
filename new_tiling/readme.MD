@@ -48,8 +48,8 @@ https://www.adamponting.com/de-bruijn-tilings/
 TODO 优化Gird创建,实际我们需要的只是点的序列而不是具体位置,而点的序列由于间隔一定的问题**一定是相同**的.
 所以我们只需要求两条间隔的线在目标线的投影,就可以推导出点在目标线的序列
 
-
-TODO 奇数的origin_vector 会被自己的1/2细分 Penrose tiling另一个重要的自相似性特征——角度的递归细分
+TODO 可以从任意一个交点开始,缩小1/pi倍,继续绘制网格,这样是可以继续细分的.
+(奇数的origin_vector 会被自己的1/2细分 Penrose tiling另一个重要的自相似性特征——角度的递归细分)
 
 TODO 应该测试下 Tilling 同时绘制两个网格的效果
 
