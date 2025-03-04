@@ -1,14 +1,14 @@
-from PY5_2DToolkit import Tools2D
+from new_tiling.PY5_2DToolkit import Tools2D
 import numpy as np
 import pandas as pd
 import warnings
 
 class BruijnsSystem:
-    def __init__(self, girds_data=None, sides=5, shifted_distance=0, gap=100, center=(100, 100), num_of_line=15):
+    def __init__(self, girds_data=None, sides=5, origin_norm=40,shifted_distance=0, gap=100, center=(100, 100), num_of_line=15):
         if girds_data:
             self.girds_data = girds_data
         else:
-            self.girds_data = self.create_gird(sides=sides, shifted_distance=shifted_distance, gap=gap, center=center,
+            self.girds_data = self.create_gird(sides=sides, origin_norm=origin_norm,shifted_distance=shifted_distance, gap=gap, center=center,
                                                num_of_line=num_of_line)
         self.interaction_data_point_location: dict[tuple[float | int]:list[int]] = {}  # 按坐标点聚合的线段id信息
         self.interaction_data_line_id: dict[tuple[int]:list[float | int]] = {}  # 按线段id聚合的坐标点信息
@@ -22,7 +22,6 @@ class BruijnsSystem:
         输出值:{ (p_x,p_y):[{v:v,n:n},{v_info}],[_x,_y]:[...],.. }
         最后自动按照向量方向来排序(从反方向-->正方向排队)
         """
-        from PY5_2DToolkit import Tools2D
         tools = Tools2D()
         girds_list = [i['girds'] for i in self.girds_data]
 
@@ -231,7 +230,7 @@ class BruijnsSystem:
             if len(target_side) == 1:
                 target_side = target_side.pop()
             else:
-                warnings.warn(f'当前的拼块的向量信息:{now_vector},下一个拼块{next_vectors}')
+                warnings.warn(f'存在不止一条共线,当前的拼块的向量信息:{now_vector},下一个拼块{next_vectors}')
                 continue
                 # target_side = random.choice(list(target_side))
                 # raise ValueError(f"获取到不止一条的共线,无法拼接:{target_side}")
@@ -307,7 +306,7 @@ class BruijnsSystem:
 
     # shifted_distance default value?
     @staticmethod
-    def create_gird(sides, shifted_distance=0, gap=100, center=(100, 100), num_of_line=50):
+    def create_gird(sides,origin_norm=80, shifted_distance=0, gap=100, center=(100, 100), num_of_line=50):
         """
         此函数用于创建一组网格系统
         distance：初始向量取垂直线以后，相互远离的距离。
@@ -319,7 +318,7 @@ class BruijnsSystem:
         # return_girds_data = []
 
         # 在【0，0】创建一个多边形,返回点集到vector
-        vectors_origin = tools.regular_polygon(sides=sides, side_length=30)
+        vectors_origin = BruijnsSystem.create_origin_girds_numpy(sides,origin_norm).tolist()
         return_girds_data = [{'origin_vector': o_v} for o_v in vectors_origin]
 
         # numpy, scipy, pandas
