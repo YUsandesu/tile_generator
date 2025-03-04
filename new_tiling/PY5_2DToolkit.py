@@ -1665,6 +1665,7 @@ class Screen_draw:
         self.tools = Tools2D()
 
     def screen_draw_surface(self, surfacedic, floor):
+        self.tools.reset()
         surface_drawed = {}
         allsurfacelist = surfacedic.keys()
         for sf in allsurfacelist:
@@ -1691,6 +1692,7 @@ class Screen_draw:
             self.py5.shape(surface_drawed[sf])
 
     def screen_draw_SegmentLine(self, SegmentLine_dic, floor):
+        self.tools.reset()
         for key, val in SegmentLine_dic.items():
             if val['floor'] != floor:
                 continue
@@ -1707,6 +1709,7 @@ class Screen_draw:
             self.py5.line(*local_group)
 
     def screen_draw_vector(self, vector_or_vector_list, start_point):
+        self.tools.reset()
         def arrow(vector):
             arrow_vector_A = self.tools.vector_rotate(vector, 180 - 30)
             arrow_vector_B = self.tools.vector_rotate(vector, -(180 - 30))
@@ -1736,6 +1739,7 @@ class Screen_draw:
         self.screen_draw_SegmentLine(self.tools.get_Segmentline_dic(), floor=0)
 
     def draw_directed_line(self, line_detail_dict, color=create_32bit_color(10, 10, 0, 255), stroke_weight=3, floor=0, minimum=50):
+        self.tools.reset()
         input_value = {'color': color, 'stroke_weight': stroke_weight, 'floor': floor}
         screen_info = self.screen_get_info()
         x_range, y_range = screen_info['x_range'], screen_info['y_range']
@@ -1786,6 +1790,7 @@ class Screen_draw:
         return True
 
     def _color_transition_segment_line(self, seg_line_get_info, color, stroke_weight, floor=0, minimum=0, sampling=5):
+        self.tools.reset()
         point_A, point_B = seg_line_get_info['location']
         x1, y1 = point_A
         x2, y2 = point_B
@@ -1816,6 +1821,7 @@ class Screen_draw:
         return self.tools.get_Segmentline_dic()
 
     def _dotted_segment_line(self, seg_line_get_info, spacing, color, stroke_weight, floor=0):
+        self.tools.reset()
         point_A, point_B = seg_line_get_info['location']
         x1, y1 = point_A
         x2, y2 = point_B
@@ -1866,7 +1872,7 @@ class Screen_draw:
 
     @time_logger
     def screen_draw_lines(self, lines_dic, color=create_32bit_color(10, 10, 0, 255), stroke_weight=3):
-
+        self.tools.reset()
         screen_info = self.screen_get_info()
         x_range, y_range = screen_info['x_range'], screen_info['y_range']
 
@@ -1885,6 +1891,7 @@ class Screen_draw:
         self.py5.lines(np.array(line_to_draw, dtype=np.float32))
 
     def screen_draw_directed_line(self, directed_line_dict_or_list, color=create_32bit_color(10, 10, 0, 255), stroke_weight=3):
+        self.tools.reset()
         skip_times = 0
         if isinstance(directed_line_dict_or_list, dict):
             lines = list(directed_line_dict_or_list.values())
@@ -1896,6 +1903,7 @@ class Screen_draw:
                 skip_times += 1
 
     def screen_draw_points(self, pointdic, size=5, color=create_32bit_color(255, 0, 0, 255), fill=None):
+        self.tools.reset()
         if fill is None:
             fill = self.py5.color(0, 0, 0, 255)
 
@@ -1910,6 +1918,7 @@ class Screen_draw:
             self.py5.circle(x, y, size)
 
     def screen_draw(self, f=3, Seglinedic=None, surfdic=None):
+        self.tools.reset()
         if surfdic is None and Seglinedic is None:
             raise ValueError('没有输入surfdic或者seglinedic,无法绘制')
         for i in range(f):
