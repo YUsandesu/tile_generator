@@ -2,6 +2,7 @@ import numpy as np
 from collections import defaultdict
 import math
 import warnings
+
 from log_tool import time_logger
 
 
@@ -384,6 +385,7 @@ class Tools2D:
     def vector_group_rotate_np(vector_group:list|np.ndarray, theta):
         """
         使用numpy方法旋转向量组
+        对每一个数值应用reduce_errors_np
 
         参数:
             vector_group (np.ndarray | list[list]): 要旋转的向量组或单个向量。
@@ -432,37 +434,93 @@ class Tools2D:
         rotated_vector = vector_group @ rotation_matrix.T  # 旋转向量
 
         # 处理接近0的浮点数
-        epsilon = 1e-10  # 定义一个小的阈值
-        rotated_vector = np.where(np.abs(rotated_vector) < epsilon, 0, rotated_vector)
+        rotated_vector = Tools2D.reduce_errors_np(rotated_vector,max_value=None)
 
         return rotated_vector
 
-
-    def vector_rotate(self, vector, theta):
+    @staticmethod
+    def reduce_errors_np(nums: list | np.ndarray, min_value:float|None = 1e-10, max_value:float|None = 1e10):
         """
-        把向量按照theta角度(度数)旋转
-        vector接受单个点,也接受一组点
-        返回:新的向量列表
-        """
-        # 将角度转换为弧度
-        theta = np.deg2rad(theta)
-        # 旋转矩阵
-        rotation_matrix = np.array([
-            [np.cos(theta), -np.sin(theta)],
-            [np.sin(theta), np.cos(theta)]
-        ])
-        np_vector = np.array(vector)
-        rotated_vector = rotation_matrix @ np_vector  # 旋转向量
-        x, y = rotated_vector  # 防止无限接近0的情况
-        return [self.reduce_errors(x), self.reduce_errors(y)]
+        减少ndarray,list,tuple中的数值误差
+        1. 将绝对值小于min_value的值设置为零。
+        2. 将绝对值大于max_value的值设置为 NaN（非数字）。
 
+        Args:
+           nums (list | np.ndarray): 要处理的目标
+           min_value (None | float, 可选): 阈值，默认为 1e-10,低于此阈值（绝对值）的值被认为接近于零。
+                                               如果设置为None，则跳过此最小值减少步骤。 默认为 1e-10。
+           max_value (None | float, 可选): 同上,默认为 1e10
+
+        Returns:np.ndarray
+
+        Raises:
+           ValueError: 输入nums不是list,tuple or ndarray
+
+        """
+        if isinstance(nums,np.ndarray):
+            back_np = nums
+        elif isinstance(nums,(list,tuple)):
+            back_np = np.array(nums)
+        else:
+            raise ValueError (f"输入值类型错误:{nums},type:{type(nums)}")
+
+        if min_value:
+            back_np = np.where(np.abs(nums) < min_value, 0, back_np)
+        elif max_value:
+            back_np = np.where(np.abs(nums) > max_value, np.nan, back_np)
+        else:
+            raise ValueError("没有过滤任何值")
+
+        return back_np
+
+    @staticmethod
+    def vector_rotate(vector:list|np.ndarray|tuple, theta):
+        """
+        把向量按照theta(度数)旋转
+        同时应用了reduce_errors
+        参数:
+            vector:list|ndarray|tuple 接受单个点
+            theta:角度
+        返回:
+            新的向量:list
+        """
+        if isinstance(vector, np.ndarray):
+            vector = vector.tolist()
+        if isinstance(vector,(tuple,list)):
+            if not Tools2D.list_depth(vector) == 1:
+                raise ValueError(f"此方法只能操作单个点,当前输入:{vector}")
+            elif len(vector) != 2:
+                raise ValueError(f'此方法只能操作二维向量,当前输入:{vector}')
+
+        theta_rad = math.radians(theta)  # 将角度转换为弧度
+        cos_value = math.cos(theta_rad)  # Use math.cos
+        sin_value = math.sin(theta_rad)  # Use math.sin
+
+        x, y = vector  # Assumes vector is a list or tuple [x, y]
+
+        rotated_x = x * cos_value - y * sin_value
+        rotated_y = x * sin_value + y * cos_value
+
+        # 防止无限接近0的情况
+        return [Tools2D.reduce_errors(rotated_x), Tools2D.reduce_errors(rotated_y)]
 
     @staticmethod
     def vector_get_norm(vector):
+        """
+            计算向量的模长(长度)
+            vector接受单个二维向量
+            返回: 向量的模长, float
+        """
+        if isinstance(vector, np.ndarray):
+            vector = vector.tolist()
+        if isinstance(vector, (tuple, list)):
+            if not Tools2D.list_depth(vector) == 1:
+                raise ValueError(f"此方法只能操作单个向量,当前输入:{vector}")
+            elif len(vector) != 2:
+                raise ValueError(f'此方法只能操作二维向量,当前输入:{vector}')
         # math.hypot 函数可以正确处理负数
         back = math.hypot(vector[0], vector[1])
         return back
-
 
     @staticmethod
     def vector_change_norm(vector, norm=1):  # To numpy
