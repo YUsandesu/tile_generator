@@ -1,7 +1,10 @@
+import time
+
 from new_tiling.PY5_2DToolkit import Tools2D
 import numpy as np
 import pandas as pd
 import warnings
+from itertools import islice
 
 class BruijnsSystem:
     def __init__(self, girds_data=None, sides=5, origin_norm=40,shifted_distance=0, gap=100, center=(100, 100), num_of_line=15):
@@ -72,13 +75,24 @@ class BruijnsSystem:
     def _sort_girds_interaction(self):
         # 指向1象限是x自小到大排列(+,+)=+,指向2象限是x自大到小排列(-,+)=-
         # 指向3象限是x自大到小排列(-,-)=-,指向4象限是x自小到大排列(+,-)=+
-        # y:         +                          +
-        #           -                          -
+        # dy:         +                          +
+        #             -                          -
         # 综上
-        # 只需要判断 pen_origin_vector 的x符号,为正就是从小到大,为负就是从大到小
-        # 为0就判断y的符号,为正就是y从小到大,为负就是从大到小
+        # 只需要判断 pen_origin_vector 的dx符号,为正就是从小到大,为负就是从大到小
+        # 为0就判断dy的符号,为正就是dy从小到大,为负就是从大到小
 
         inter_data = self.interaction_data_point_location
+        print(f'===待处理信息===\n{dict(islice(inter_data.items(),3))}...')
+
+        # data = {
+        #     'id': [1, 2, 3],
+        #     'point': [[3, 30], [1, 10], [2, 20]]
+        # }
+        # df = pd.DataFrame(data)
+        # # 使用 key 参数指定一个函数，该函数从每个元素中提取用于排序的值（索引 0）
+        # sorted_df = df.sort_values(by='point', key=lambda col: col.apply(lambda p: p[0]))
+        # print(sorted_df)
+
         reverse_data:dict = {}
         # line_id 例: (a,b) --> girds_data[a]['girds'][b]
         for point, line_id_list in inter_data.items():
@@ -95,18 +109,23 @@ class BruijnsSystem:
             data_id, girds_id = line_id[0], line_id[1]
             line = self.girds_data[data_id]['girds'][girds_id]
             direction_vector = line['direction_vector']
-            x, y = direction_vector
+            dx, dy = direction_vector
 
             points = np.array(points)
-            if not x == 0:
-                sorted_indices = np.argsort(np.sign(x) * points[:, 0])  # 根据x坐标
-            elif not y == 0:
-                sorted_indices = np.argsort(np.sign(y) * points[:, 1])  # 根据x坐标
+            if not dx == 0:
+                sorted_indices = np.argsort(np.sign(dx) * points[:, 0])  # 根据x坐标
+            elif not dy == 0:
+                sorted_indices = np.argsort(np.sign(dy) * points[:, 1])  # 根据y坐标
             else:
                 continue
             sorted_points = points[sorted_indices].tolist()
             reverse_data[line_id] = sorted_points
+
+
         self.interaction_data_line_id = reverse_data
+
+        print(f'\n===倒字典排序===\nself.interaction_data_line_id:{dict(islice(reverse_data.items(), 1))}...')
+
 
     @staticmethod
     def get_tilling_information(gird_origin_vectors, vectors):
@@ -296,12 +315,10 @@ class BruijnsSystem:
         """
         if sides < 3:
             raise
-        angles_group = np.linspace(0, stop=2 * np.pi, num=sides, endpoint=False)
-        # np.linspace 用于创建等间距的数值序列。 "linear space"（线性空间）
+        angles_group = np.linspace(0, stop=2 * np.pi, num=sides, endpoint=False)# np.linspace 用于创建等间距的数值序列。 "linear space"（线性空间）
         x = np.cos(angles_group) * radius
         y = np.sin(angles_group) * radius
-        back_nparray = np.column_stack([x, y])
-        # all the input arrays must have same number of dimensions维度
+        back_nparray = np.column_stack([x, y])# all the input arrays must have same number of dimensions维度
         return back_nparray
 
     # shifted_distance default value?
@@ -314,14 +331,21 @@ class BruijnsSystem:
         返回一个列表，每个列表中包含一个方向的平行网格线，由所有网格线组成一个gird
         """
 
+        data_pd = pd.DataFrame()
+
         tools = Tools2D()
         # return_girds_data = []
-
         # 在【0，0】创建一个多边形,返回点集到vector
-        vectors_origin = BruijnsSystem.create_origin_girds_numpy(sides,origin_norm).tolist()
+        vectors_origin_np=BruijnsSystem.create_origin_girds_numpy(sides,origin_norm)
+        vectors_origin = vectors_origin_np.tolist()
+        data_pd['origin_vector_x'] = vectors_origin_np[:,0]
+        data_pd['origin_vector_y'] = vectors_origin_np[:,1]
+        data_pd.columns = pd.MultiIndex.from_product([['origin_vector'], ['origin_vector_x', 'origin_vector_y']])
+        print(f'输出data_pd:\n{data_pd}')
+        print(data_pd['origin_vector'])
+        time.sleep(9999)
         return_girds_data = [{'origin_vector': o_v} for o_v in vectors_origin]
 
-        # numpy, scipy, pandas
         return_girds_df = pd.DataFrame(return_girds_data)
 
         # 取vector的垂直向量vector_pen
@@ -403,3 +427,6 @@ class BruijnsSystem:
         print('完整输出:')
         print(return_girds_data)
         return return_girds_data
+
+if __name__ == "__main__":
+    BruijnsSystem()
