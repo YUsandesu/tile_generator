@@ -1,3 +1,4 @@
+import sys
 import time
 
 from new_tiling.PY5_2DToolkit import Tools2D
@@ -8,6 +9,7 @@ from itertools import islice
 
 class BruijnsSystem:
     def __init__(self, girds_data=None, sides=5, origin_norm=40,shifted_distance=0, gap=100, center=(100, 100), num_of_line=15):
+        self.tools = Tools2D()
         if girds_data:
             self.girds_data = girds_data
         else:
@@ -25,7 +27,8 @@ class BruijnsSystem:
         输出值:{ (p_x,p_y):[{v:v,n:n},{v_info}],[_x,_y]:[...],.. }
         最后自动按照向量方向来排序(从反方向-->正方向排队)
         """
-        tools = Tools2D()
+        self.tools.reset()
+
         girds_list = [i['girds'] for i in self.girds_data]
 
         # 清空已有
@@ -38,7 +41,7 @@ class BruijnsSystem:
             for t_in, in_gird in enumerate(girds_list[t_out + 1:], start=t_out + 1):
                 for number_out, line_detail_out in out_gird.items():
                     for number_in, line_detail_in in in_gird.items():
-                        interaction_point = tools.intersection_2line(line_detail_out, line_detail_in)
+                        interaction_point = self.tools.intersection_2line(line_detail_out, line_detail_in)
                         if interaction_point is None:
                             continue
 
@@ -321,58 +324,35 @@ class BruijnsSystem:
         back_nparray = np.column_stack([x, y])# all the input arrays must have same number of dimensions维度
         return back_nparray
 
-    # shifted_distance default value?
-    @staticmethod
-    def create_gird(sides,origin_norm=80, shifted_distance=0, gap=100, center=(100, 100), num_of_line=50):
+    def create_gird(self,sides,origin_norm=80, shifted_distance=0, gap=100, center=(100, 100), num_of_line=50):
         """
         此函数用于创建一组网格系统
         distance：初始向量取垂直线以后，相互远离的距离。
         zoom：每条网格线相隔的距离
         返回一个列表，每个列表中包含一个方向的平行网格线，由所有网格线组成一个gird
         """
+        self.tools.reset()
+        data_df = pd.DataFrame()
 
-        data_pd = pd.DataFrame()
+        # 在【0，0】创建一个多边形
+        vectors_origin_np = BruijnsSystem.create_origin_girds_numpy(sides, origin_norm)
+        data_df['origin_vector'] = vectors_origin_np.tolist()
+        # print(f'输出data_pd:\n{data_df}')
 
-        tools = Tools2D()
-        # return_girds_data = []
-        # 在【0，0】创建一个多边形,返回点集到vector
-        vectors_origin_np=BruijnsSystem.create_origin_girds_numpy(sides,origin_norm)
-        vectors_origin = vectors_origin_np.tolist()
-        data_pd['origin_vector_x'] = vectors_origin_np[:,0]
-        data_pd['origin_vector_y'] = vectors_origin_np[:,1]
-        data_pd.columns = pd.MultiIndex.from_product([['origin_vector'], ['origin_vector_x', 'origin_vector_y']])
-        print(f'输出data_pd:\n{data_pd}')
-        print(data_pd['origin_vector'])
-        time.sleep(9999)
-        return_girds_data = [{'origin_vector': o_v} for o_v in vectors_origin]
-
-        return_girds_df = pd.DataFrame(return_girds_data)
 
         # 取vector的垂直向量vector_pen
-        vectors_origin_np = np.asarray(vectors_origin)
-
         theta = np.deg2rad(90)
         rotation_matrix = np.array([
             [np.cos(theta), -np.sin(theta)],
             [np.sin(theta), np.cos(theta)]
         ])
-        print('-' * 40)
-        print((rotation_matrix @ vectors_origin_np.T).T)
-        print(vectors_origin_np @ rotation_matrix.T)
-        print('-' * 40)
-        vectors_origin_pen = [tools.vector_rotate(the_vector, 90) for the_vector in vectors_origin]
-        print('-' * 40)
-        print(vectors_origin_pen)
-        print('-' * 40)
-
-        # for t, p_o_v in enumerate(vectors_origin_pen):
-        #     return_girds_data[t]['pen_origin_vector'] = p_o_v
-
-        return_girds_df['pen_origin_vector'] = (vectors_origin_np @ rotation_matrix.T).tolist()
-
+        vectors_origin_pen_np = vectors_origin_np @ rotation_matrix.T
+        data_df['pen_origin_vector'] = vectors_origin_pen_np.tolist()
+        print(data_df['pen_origin_vector'])
+        breakpoint()
         # 定义有向直线:
-        for d_v in vectors_origin_pen:
-            tools.directed_line_drop(location_point=center, direction_vector=d_v)
+        for d_v in vectors_origin_pen_np.tolist():
+            self.tools.directed_line_drop(location_point=center, direction_vector=d_v)
 
         # origin_directed_lines = tools.get_line_dic()
         origin_directed_lines = tools.line_dic
