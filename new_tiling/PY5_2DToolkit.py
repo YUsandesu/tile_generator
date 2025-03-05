@@ -4,6 +4,7 @@ import math
 import warnings
 from log_tool import time_logger
 
+
 def read_32bit_color(bit32_color):
     """
     此函数将32位颜色提取成10进制数,范围0-255
@@ -14,7 +15,9 @@ def read_32bit_color(bit32_color):
     red = (bit32_color >> 16) & 0xFF  # 提取红色通道
     green = (bit32_color >> 8) & 0xFF  # 提取绿色通道
     blue = bit32_color & 0xFF  # 提取蓝色通道
-    return  red,green,blue,alpha
+    return red, green, blue, alpha
+
+
 def create_32bit_color(r, g, b, a=255):
     """
     此函数接收红、绿、蓝和 alpha 通道的值，并将其组合成一个 32 位的颜色值。
@@ -23,6 +26,7 @@ def create_32bit_color(r, g, b, a=255):
     # 将输入的颜色通道组合成 32 位颜色值
     bit32_color = (a << 24) | (r << 16) | (g << 8) | b
     return bit32_color
+
 
 class Tools2D:
     """
@@ -147,12 +151,13 @@ class Tools2D:
         separate_letter(letter):
             将字母拆分为其基础 ASCII 值和索引。
     """
-    def __init__(self,screen_info=None):
+
+    def __init__(self, screen_info=None):
         self.point_dic = {}  # 存储点的字典
         self.Segmentline_dic = {}  # 存储线段的字典
         self.surface_dic = {}  # 存储面的字典
         self.line_dic = {}  # 存储直线的字典
-        self.reverse_point_dic = defaultdict(list) #创建储存点的反字典 便于倒查
+        self.reverse_point_dic = defaultdict(list)  # 创建储存点的反字典 便于倒查
         # 初始化字母表
         self.alphabetize_Capital = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 A-Z
         self.alphabetize = [chr(i) for i in range(97, 123)]  # ASCII 范围 97 到 122
@@ -162,29 +167,30 @@ class Tools2D:
         self.letter_index = 0  # 字母的后缀序列
         self.letter_index_capital = 0  # 字母的后缀序列
         if screen_info:
-            self.screeninfo=screen_info
+            self.screeninfo = screen_info
 
     def reset(self):
         """
         调用_init_()重新初始化
         """
         self.__init__()
-        
+
     def get_point_dic(self):
         return self.point_dic
-    
+
     def get_Segmentline_dic(self):
-        back_dic={}
+        back_dic = {}
         for i in self.Segmentline_dic.keys():
-            back_dic[i]=self.Segmentline_get_info(i)
+            back_dic[i] = self.Segmentline_get_info(i)
         return back_dic
-    
-    def get_line_dic(self): # python has no public/private, public getter/setter functions (strong type) [variable; in a class, attribute -> property]
+
+    def get_line_dic(
+            self):  # python has no public/private, public getter/setter functions (strong type) [variable; in a class, attribute -> property]
         """
         line_dic格式:{字母代号:{a:int,k:int,b:int}, 字母代号:{...}, ...}
         """
         return self.line_dic
-    
+
     def get_surface_dic(self):
         return self.surface_dic
 
@@ -226,12 +232,12 @@ class Tools2D:
 
         return letter
 
-    def distance_2_points_matrix(self,Apoint,Bpoint):
+    def distance_2_points_matrix(self, Apoint, Bpoint):
         """
         矩阵方法求norm 使用的是np矩阵
         """
-        A=self.point_get_info(Apoint)['location']
-        B=self.point_get_info(Bpoint)['location']
+        A = self.point_get_info(Apoint)['location']
+        B = self.point_get_info(Bpoint)['location']
         np_A = np.array(A)
         np_B = np.array(B)
         return np.linalg.norm(np_A - np_B)
@@ -260,27 +266,29 @@ class Tools2D:
         失败返回 False。
         """
         self.back_letter_capital(aletter)
-        value=self.point_dic[aletter]
+        value = self.point_dic[aletter]
         del self.point_dic[aletter]
-        if len(self.reverse_point_dic[tuple(value)])>1:
-            #如果列表中内容超过一项,那么有多个点名称同时存在
-            re_write=self.reverse_point_dic[tuple(value)]
-            re_write.remove(aletter) #从其中删除指定代号
-            self.reverse_point_dic[tuple(value)]=re_write #重新覆写回去
-        elif len(self.reverse_point_dic[tuple(value)])==1:
+        if len(self.reverse_point_dic[tuple(value)]) > 1:
+            # 如果列表中内容超过一项,那么有多个点名称同时存在
+            re_write = self.reverse_point_dic[tuple(value)]
+            re_write.remove(aletter)  # 从其中删除指定代号
+            self.reverse_point_dic[tuple(value)] = re_write  # 重新覆写回去
+        elif len(self.reverse_point_dic[tuple(value)]) == 1:
             del self.reverse_point_dic[tuple(value)]
         else:
             raise ValueError(f"删除reverse_pointdic时,发生未知错误altter:{aletter}")
+
     def point_remove_by_xy(self, point_xy):
         """
         通过调用point_get_info调用point_remove_by_letter
         失败返回False
         """
-        info=self.point_get_info(point_xy)
+        info = self.point_get_info(point_xy)
         if info['letter'] is not None:
             return self.point_remove_by_letter(info['letter'])
         else:
             return False
+
     def point_drop_group(self, point_xy_group):
         """
         循环调用 point_drop
@@ -297,6 +305,7 @@ class Tools2D:
             else:
                 raise ValueError("data is not:([x,y],(x,y),(x,y))")
         return back
+
     def point_get_info(self, point_xy_or_letter):
         """
         如果还未创建,返回None
@@ -307,9 +316,9 @@ class Tools2D:
         """
         back_dict = {}
         if isinstance(point_xy_or_letter, str) and point_xy_or_letter:
-            #如果输入的是字母:
+            # 如果输入的是字母:
             if point_xy_or_letter not in self.point_dic.keys():
-                #输入的字母不在字典中
+                # 输入的字母不在字典中
                 raise ValueError(f"输入的字母{point_xy_or_letter}不在字典中:{self.point_dic}")
             detail_point = self.point_dic[point_xy_or_letter]
             point_x = detail_point[0]
@@ -326,10 +335,11 @@ class Tools2D:
                 letter = None
         else:
             raise ValueError(f"未知错误,输入的点是{point_xy_or_letter}")
-        back_dict['type']=input_type
-        back_dict['letter']=letter
-        back_dict['location']=[point_x,point_y]
+        back_dict['type'] = input_type
+        back_dict['letter'] = letter
+        back_dict['location'] = [point_x, point_y]
         return back_dict
+
     def point2_to_vector(self, Apoint, Bpoint):
         """
         默认是自A向B出发的向量
@@ -352,11 +362,11 @@ class Tools2D:
         if not isinstance(vector, (tuple, list)) or len(vector) != 2:
             raise ValueError(f"平移向量错误,当前为{vector}")
         s_x, s_y = vector
-        if Tools2D.list_depth(point_or_points)==2:
-            #如果输入的是一组点而不是一个点
-            back_list=[]
+        if Tools2D.list_depth(point_or_points) == 2:
+            # 如果输入的是一组点而不是一个点
+            back_list = []
             for point in point_or_points:
-                if len(point)!=2:
+                if len(point) != 2:
                     raise ValueError(f'point输入值有误:{point_or_points}')
                 p_x, p_y = point
                 back_x = p_x + s_x
@@ -369,7 +379,46 @@ class Tools2D:
         back_x = p_x + s_x
         back_y = p_y + s_y
         return [back_x, back_y]
-    
+
+    @staticmethod
+    def vector_group_rotate_np(vector_group: np.ndarray | list[list], theta):
+        if isinstance(vector_group, np.ndarray):
+            if vector_group.ndim == 1 and len(vector_group) == 2:
+                #ndim:number of dimensions 实际取出来的是嵌套层数
+                warnings.warn(f"输入的是一个单独向量: {vector_group}")
+                vector_group = vector_group[np.newaxis, :]  # 将其转换为二维数组
+            elif vector_group.shape[1] != 2:
+                raise ValueError(f'输入的格式有误: {vector_group}')
+        elif isinstance(vector_group, (list, tuple)):
+            depth = Tools2D.list_depth(vector_group)
+            if depth != 2:
+                if depth == 1:
+                    warnings.warn(f"输入的是一个单独向量:{vector_group}")
+                    vector_group = [vector_group]
+                else:
+                    raise ValueError(f'输入的格式有误:{vector_group}')
+            vector_group = np.array(vector_group)
+        else:
+            raise ValueError(f'输入的格式有误:{vector_group}')
+
+        # 将角度转换为弧度
+        theta = np.deg2rad(theta)
+
+        # 旋转矩阵
+        rotation_matrix = np.array([
+            [np.cos(theta), -np.sin(theta)],
+            [np.sin(theta), np.cos(theta)]
+        ])
+
+        rotated_vector = vector_group @ rotation_matrix.T  # 旋转向量
+
+        # 处理接近0的浮点数
+        epsilon = 1e-10  # 定义一个小的阈值
+        rotated_vector = np.where(np.abs(rotated_vector) < epsilon, 0, rotated_vector)
+
+        return rotated_vector
+
+
     def vector_rotate(self, vector, theta):
         """
         把向量按照theta角度(度数)旋转
@@ -383,26 +432,21 @@ class Tools2D:
             [np.cos(theta), -np.sin(theta)],
             [np.sin(theta), np.cos(theta)]
         ])
-        if self.list_depth(vector) == 2:
-            # print(vector)
-            #如果输入的是一组点而不是一个点 (what's the point???)
-            backlist=[]
-            for i in vector:
-                np_vector = np.array(i)
-                backlist.append( list(rotation_matrix @ np_vector) )
-            return backlist
         np_vector = np.array(vector)
-        rotated_vector = rotation_matrix @ np_vector # 旋转向量
-        x, y = rotated_vector #防止无限接近0的情况
-        return [self.reduce_errors(x), self.reduce_errors(y)] 
-    
+        rotated_vector = rotation_matrix @ np_vector  # 旋转向量
+        x, y = rotated_vector  # 防止无限接近0的情况
+        return [self.reduce_errors(x), self.reduce_errors(y)]
+
+
     @staticmethod
     def vector_get_norm(vector):
-        #math.hypot 函数可以正确处理负数
-        back = math.hypot(vector[0],vector[1])
+        # math.hypot 函数可以正确处理负数
+        back = math.hypot(vector[0], vector[1])
         return back
+
+
     @staticmethod
-    def vector_change_norm(vector, norm=1): # To numpy
+    def vector_change_norm(vector, norm=1):  # To numpy
         """
         调整向量的模长
         返回一个新的vector[x,y]
@@ -414,19 +458,20 @@ class Tools2D:
             raise ValueError("无法修改0向量的模长")
         if v_x == 0:
             if v_y < 0:
-                #负数情况
+                # 负数情况
                 return [0, -norm]
             return [0, norm]
         if v_y == 0:
             if v_x < 0:
                 return [-norm, 0]
             return [norm, 0]
-        multiple = norm / math.hypot(v_x, v_y) # normalization 
+        multiple = norm / math.hypot(v_x, v_y)  # normalization
         back = [v_x * multiple, v_y * multiple]
         return back
 
+
     @staticmethod
-    def reduce_errors(num, max_value=1e10, min_value=1e-10): # TODO: to numpy -> clip
+    def reduce_errors(num, max_value=1e10, min_value=1e-10):  # TODO: to numpy -> clip
         """
         如果接近无穷大返回None，接近无穷小返回0
         """
@@ -436,30 +481,33 @@ class Tools2D:
             return 0
         return num
 
-    def vector_to_line(self,vector,passing_point=(0,0),temp=False):
+
+    def vector_to_line(self, vector, passing_point=(0, 0), temp=False):
         """
         passing_point,直线经过的点，默认(0，0)
         向量换直线,返回的是字母代号。如果temp=True 返回字典。
         """
-        if self.reduce_errors(vector[0])==0 and self.reduce_errors(vector[1])==0:
+        if self.reduce_errors(vector[0]) == 0 and self.reduce_errors(vector[1]) == 0:
             return None
-        if self.reduce_errors(vector[0])==0:
-            #垂直情况
-            #x=b ; k=-1 a=0
-            return self.line_drop(a=0,k=-1,b=passing_point[0])
-        if self.reduce_errors(vector[1])==0:
-            #水平情况
-            #y=b ;a=1 k=0
-            return self.line_drop(a=1,k=0,b=passing_point[1])
+        if self.reduce_errors(vector[0]) == 0:
+            # 垂直情况
+            # x=b ; k=-1 a=0
+            return self.line_drop(a=0, k=-1, b=passing_point[0])
+        if self.reduce_errors(vector[1]) == 0:
+            # 水平情况
+            # y=b ;a=1 k=0
+            return self.line_drop(a=1, k=0, b=passing_point[1])
 
-        k=self.reduce_errors(vector[1]/vector[0])
+        k = self.reduce_errors(vector[1] / vector[0])
         if k is None:
-            a=0 #无穷小
+            a = 0  # 无穷小
         else:
-            a=1
-        b=self.line_solve_general(a=a,x=passing_point[0],y=passing_point[1],k=k)['b']
-        return self.line_drop(a=a,k=k,b=b,temp=temp)
-    def line_shift(self,line_letter_or_dic, vector,rewrite=True,drop=True):
+            a = 1
+        b = self.line_solve_general(a=a, x=passing_point[0], y=passing_point[1], k=k)['b']
+        return self.line_drop(a=a, k=k, b=b, temp=temp)
+
+
+    def line_shift(self, line_letter_or_dic, vector, rewrite=True, drop=True):
         """
             对line或directed_line进行平移操作。
 
@@ -469,7 +517,7 @@ class Tools2D:
                 rewrite (bool): 是否更新 self.line_dic 中的直线信息。
                 drop (bool): 当前直线还未创建,创建一个新的直线对象。
         """
-        k=None
+        k = None
         if not isinstance(vector, (tuple, list)) or len(vector) != 2:
             raise ValueError(f"平移向量错误,当前为{vector}")
 
@@ -477,53 +525,54 @@ class Tools2D:
             detail = self.line_dic[line_letter_or_dic].copy()
             letter = line_letter_or_dic
         elif isinstance(line_letter_or_dic, dict):
-            detail=line_letter_or_dic.copy()
+            detail = line_letter_or_dic.copy()
             letter = None
         else:
             raise ValueError(f"输入直线错误,为{line_letter_or_dic}")
 
-        if 'directed' in detail:#获取有向线段
-            location_x,location_y=detail['location_point']
-            detail['location_point']=[location_x+vector[0],location_y+vector[1]]
+        if 'directed' in detail:  # 获取有向线段
+            location_x, location_y = detail['location_point']
+            detail['location_point'] = [location_x + vector[0], location_y + vector[1]]
 
         elif 'a' in detail:
-            #x=b
+            # x=b
             a = detail['a']
             k = -1
-            new_b = detail['b']+vector[0]
+            new_b = detail['b'] + vector[0]
             detail['b'] = new_b
-            detail['str'] = f'x={round(new_b,2)}'
+            detail['str'] = f'x={round(new_b, 2)}'
             if drop:
-                return self.line_drop(k=k, b=new_b,a=a)
+                return self.line_drop(k=k, b=new_b, a=a)
 
-        else:# 处理普通直线（y = kx + b 或水平线 y = b）
+        else:  # 处理普通直线（y = kx + b 或水平线 y = b）
             b = detail['b']
             k = detail['k']
 
-            if k == 0:# 水平线（y = original_b）
+            if k == 0:  # 水平线（y = original_b）
                 # y=b
                 new_b = detail['b'] + vector[1]
                 detail['str'] = f'y={round(new_b, 2)}'
             else:
-                new_b = b + vector[1] - k * vector[0] #(y-v1)=k(x-v0)+b-->y=kx - k*v0 + v1 +b -->b -k*v0 + v1
+                new_b = b + vector[1] - k * vector[0]  # (y-v1)=k(x-v0)+b-->y=kx - k*v0 + v1 +b -->b -k*v0 + v1
                 if new_b > 0: detail['str'] = f'y={round(k, 2)}x+{round(new_b, 2)}'
                 if new_b == 0: detail['str'] = f'y={round(k, 2)}x'
                 if new_b < 0: detail['str'] = f'y={round(k, 2)}x{round(new_b, 2)}'
-            detail['b']=new_b
+            detail['b'] = new_b
 
         if letter and rewrite:
             # 更新 self.line_dic 中的直线信息
             self.line_dic[letter] = detail
             return letter
 
-        if drop:#返回新的直线对象
+        if drop:  # 返回新的直线对象
             if 'directed' in detail:
                 return self.directed_line_drop(detail['location_point'], detail['direction_vector'])
             if k:
                 return self.line_drop(k=detail.get('k'), b=detail['b'], a=detail.get('a', 1))
 
-        else: #返回更新后的直线详细信息
+        else:  # 返回更新后的直线详细信息
             return detail
+
 
     # ////////////《线操作》////////////
     def Segmentline_drop(self, Apoint, Bpoint, floor=0, color=create_32bit_color(0, 0, 0, 255), stroke_weight=3,
@@ -533,19 +582,19 @@ class Tools2D:
         :param color: 只接受py5.color()之后的数值 否则后面绘制会出错
         :param visible: 是否可视，在绘制辅助线时候可以设置为=False
         """
-        A_info=self.point_get_info(Apoint)
+        A_info = self.point_get_info(Apoint)
         if A_info['letter'] is None:
             Aletter = self.point_drop(A_info['location'])
         else:
-            #当前点已经存在 直接使用
+            # 当前点已经存在 直接使用
             Aletter = A_info['letter']
-        B_info=self.point_get_info(Bpoint)
+        B_info = self.point_get_info(Bpoint)
         if B_info['letter'] is None:
             Bletter = self.point_drop(B_info['location'])
         else:
-            #当前点已经存在 直接使用"
-            Bletter= B_info['letter']
-        #判断提供的点是否创建 如果没有创建就提前创建
+            # 当前点已经存在 直接使用"
+            Bletter = B_info['letter']
+        # 判断提供的点是否创建 如果没有创建就提前创建
         inf = {}
         inf["floor"] = floor
         inf["color"] = color
@@ -554,32 +603,35 @@ class Tools2D:
         self.Segmentline_dic[Aletter + "-" + Bletter] = inf
         return Aletter + "-" + Bletter
 
-    def Segmentline_get_info(self,chain_or_2pointxy):
+
+    def Segmentline_get_info(self, chain_or_2pointxy):
         """
         如果返回None 说明该直线还未创建
         返回一个字典 包括键location[[x1,y1],[x2,y2]],chain,还有绘制信息(floor,color,visible,stroke_weight)
         """
-        if isinstance(chain_or_2pointxy,str):
+        if isinstance(chain_or_2pointxy, str):
             if not chain_or_2pointxy in self.Segmentline_dic:
                 return None
-            A_point,B_point=chain_or_2pointxy.split('-')
-        elif isinstance(chain_or_2pointxy,(list,tuple))and len(chain_or_2pointxy)==2:
+            A_point, B_point = chain_or_2pointxy.split('-')
+        elif isinstance(chain_or_2pointxy, (list, tuple)) and len(chain_or_2pointxy) == 2:
             A_point = chain_or_2pointxy[0]
             B_point = chain_or_2pointxy[1]
         else:
             raise ValueError(f"输入的值有问题,为:{chain_or_2pointxy}")
-        A_info,B_info= self.point_get_info(A_point),self.point_get_info(B_point)
+        A_info, B_info = self.point_get_info(A_point), self.point_get_info(B_point)
         if A_info['letter'] is None or B_info['letter'] is None:
             return None
         back_dic = {}
-        back_dic['location'] = [A_info['location'],B_info['location']]
-        back_dic['chain']=A_info['letter']+'-'+B_info['letter']
+        back_dic['location'] = [A_info['location'], B_info['location']]
+        back_dic['chain'] = A_info['letter'] + '-' + B_info['letter']
         more = self.Segmentline_dic[back_dic['chain']]
         back_dic = back_dic | more
         return back_dic
 
+
     def Segmentline_remove_by_chain(self, chain):
         del self.Segmentline_dic[chain]
+
 
     def line_drop(self, k, b, a=1, temp=False):
         """
@@ -603,22 +655,23 @@ class Tools2D:
         if a == 0:
             line_str = f"x={round(b / -k, 2)}"
             detail_dic['str'] = line_str
-            detail_dic['b'] = b / -k #0y=kx+b b/-k=x
+            detail_dic['b'] = b / -k  # 0y=kx+b b/-k=x
             detail_dic['k'] = -1
             detail_dic['a'] = 0
         if k == 0:
-            line_str = f"y={round(b,2)}"
+            line_str = f"y={round(b, 2)}"
             detail_dic['str'] = line_str
             detail_dic['k'] = 0
             detail_dic['b'] = b
         if a == 1 and k != 0:
             if b > 0:
-                line_str = f"y={round(k,2)}x+{round(b,2)}"
+                line_str = f"y={round(k, 2)}x+{round(b, 2)}"
             elif b < 0:
-                line_str = f"y={round(k,2)}x{(round(b,2))}"
+                line_str = f"y={round(k, 2)}x{(round(b, 2))}"
             elif b == 0:
-                line_str = f"y={round(k,2)}x"
-            else: raise ValueError(f"b值出现错误,b为:{b}")
+                line_str = f"y={round(k, 2)}x"
+            else:
+                raise ValueError(f"b值出现错误,b为:{b}")
             detail_dic['str'] = line_str
             detail_dic['k'] = k
             detail_dic['b'] = b
@@ -643,6 +696,7 @@ class Tools2D:
         self.line_dic[new_letter] = detail_dic
         return new_letter
 
+
     def line_remove(self, letter):
         """
         删除线
@@ -654,7 +708,9 @@ class Tools2D:
         else:
             return False
 
-    def line_to_Segmentline(self, line, x_range=None, y_range=None, floor=0, color=create_32bit_color(0, 0, 0, 255), stroke_weight=3,
+
+    def line_to_Segmentline(self, line, x_range=None, y_range=None, floor=0, color=create_32bit_color(0, 0, 0, 255),
+                            stroke_weight=3,
                             visible=True):
         """
         line:可以接受 letter 或者 dict
@@ -666,13 +722,13 @@ class Tools2D:
 
         input_value = {'floor': floor, 'color': color, 'stroke_weight': stroke_weight, 'visible': visible}
 
-        #判断输入是id
-        if not isinstance(line,dict):
+        # 判断输入是id
+        if not isinstance(line, dict):
             if line not in self.line_dic:
                 raise ValueError(f'{self.line_dic}没有找到给定line：{line}')
             line = self.line_dic[line]
 
-        #排序输入的范围,防止错误
+        # 排序输入的范围,防止错误
         if x_range is not None:
             x_range = sorted([x_range[0], x_range[1]])
             x_min, x_max = x_range
@@ -724,39 +780,39 @@ class Tools2D:
                 return self.Segmentline_drop(Apoint=[value_x, y_min],
                                              Bpoint=[value_x, y_max],
                                              **input_value)
-        elif x_min==x_max:
+        elif x_min == x_max:
             # 上文已经判断过垂直线的情况
             warnings.warn(f'line:{line} x取值范围{x_range}是一个点')
             return None
 
-        #常规情况处理
+        # 常规情况处理
         value_y = None
         if y_range:
-            #这里有可能解出任意值,None代表任意值,比如y刚好在水平线上
-            x_solved_by_y_min=self.line_solve(line,y=y_min)
-            x_solved_by_y_max=self.line_solve(line,y=y_max)
+            # 这里有可能解出任意值,None代表任意值,比如y刚好在水平线上
+            x_solved_by_y_min = self.line_solve(line, y=y_min)
+            x_solved_by_y_max = self.line_solve(line, y=y_max)
 
             if x_solved_by_y_min is None:
-                #水平线
-                y_in_x_min,y_in_x_max = y_min,y_min
+                # 水平线
+                y_in_x_min, y_in_x_max = y_min, y_min
             elif x_solved_by_y_max is None:
                 # if x_solved_by_y_min is None:
                 #     raise ValueError(f'取得两个都是任意值,不太可能出现这种情况,line:{line},y_range:{y_range}')
                 # 水平线
-                y_in_x_min,y_in_x_max = y_max,y_max
+                y_in_x_min, y_in_x_max = y_max, y_max
             else:
-                #排序大小
+                # 排序大小
                 x_min_solved_by_y, x_max_solved_by_y = sorted([x_solved_by_y_min, x_solved_by_y_max])
                 if x_range:
-                    if x_max_solved_by_y<=x_min or x_min_solved_by_y>=x_max:
+                    if x_max_solved_by_y <= x_min or x_min_solved_by_y >= x_max:
                         # print('超出范围')
                         return None
-                    if x_min<x_min_solved_by_y<x_max:
+                    if x_min < x_min_solved_by_y < x_max:
                         x_min = x_min_solved_by_y
-                    if x_min<x_max_solved_by_y<x_max:
+                    if x_min < x_max_solved_by_y < x_max:
                         x_max = x_max_solved_by_y
                 else:
-                    x_min, x_max = x_min_solved_by_y,x_max_solved_by_y
+                    x_min, x_max = x_min_solved_by_y, x_max_solved_by_y
                 # x_range = [x_min, x_max]
 
                 # 如果是计算过的,直接使用缩小计算量
@@ -771,18 +827,17 @@ class Tools2D:
                 elif x_max == x_solved_by_y_max:
                     y_in_x_max = y_max
 
-
         # if x_range:
         if not y_in_x_min:
-            y_in_x_min= self.line_solve(line,x=x_min)
+            y_in_x_min = self.line_solve(line, x=x_min)
         if not y_in_x_max:
-            y_in_x_max= self.line_solve(line,x=x_max)
-        #这里求解不回None,因为输入x,返回任意值 说明刚好落在垂直线上,但是上文已经判断过a的情况
+            y_in_x_max = self.line_solve(line, x=x_max)
+        # 这里求解不回None,因为输入x,返回任意值 说明刚好落在垂直线上,但是上文已经判断过a的情况
 
         return self.Segmentline_drop([x_min, y_in_x_min], [x_max, y_in_x_max])
 
 
-    def directed_line_to_line(self,line_letter_or_detail_dic,temp=True):
+    def directed_line_to_line(self, line_letter_or_detail_dic, temp=True):
         if isinstance(line_letter_or_detail_dic, dict):
             detail_dic = line_letter_or_detail_dic
         else:
@@ -793,16 +848,17 @@ class Tools2D:
         if 'direction_vector' not in detail_dic or 'location_point' not in detail_dic:
             raise KeyError("有向直线的描述字典缺少必要的字段 'direction_vector' 或 'location_point'")
 
-        vx,vy = detail_dic['direction_vector']
-        lx,ly = detail_dic['location_point']
-        if vx==0:#垂直线
+        vx, vy = detail_dic['direction_vector']
+        lx, ly = detail_dic['location_point']
+        if vx == 0:  # 垂直线
             # 垂直线公式：0y = -1x + b → x = b
             # 参数k在此场景下仅为占位符，固定为-1
-            return self.line_drop(a=0,k=-1,b=lx,temp=temp)
-        else:#常规线(包括水平)
-            k = vy/vx
-            b=  ly - k * lx
-            return self.line_drop(a=1,k=k,b=b,temp=temp)
+            return self.line_drop(a=0, k=-1, b=lx, temp=temp)
+        else:  # 常规线(包括水平)
+            k = vy / vx
+            b = ly - k * lx
+            return self.line_drop(a=1, k=k, b=b, temp=temp)
+
 
     def line_solve(self, line_letter_or_detail_dic, x=None, y=None):
         """
@@ -833,7 +889,7 @@ class Tools2D:
         # 计算 y
         if y is None:
             if a == 0:
-                return None #此时为垂直线,y可以取任意值
+                return None  # 此时为垂直线,y可以取任意值
             return (k * x + b) / a  # y = (kx + b) / a
 
         # 计算 x
@@ -841,8 +897,9 @@ class Tools2D:
             if k == 0:
                 if a == 0:
                     raise ValueError("a = 0 且 k = 0 时，方程无意义，无法计算 x")
-                return None #此时x取值为任意值
+                return None  # 此时x取值为任意值
             return (a * y - b) / k  # x = (ay - b) / k
+
 
     def line_solve_general(self, a=1, y=None, k=None, x=None, b=None, A_point=None, B_point=None):
         """
@@ -920,6 +977,7 @@ class Tools2D:
         # 如果所有变量都已知，直接返回
         return known_values
 
+
     def intersection_2_Segmentline_Matrix(self, Aline, Bline):
         """
          使用矩阵方法 numpy 计算两条线段的交点
@@ -956,6 +1014,7 @@ class Tools2D:
 
         return None  # 如果 t 或 s 不在范围内，则没有交点
 
+
     def intersection_2_Segmentline(self, A_seg_Chain_or_2pointxy, B_seg_Chain_or_2pointxy):
         """
         查找两条线段的交点，返回交点坐标或 None。
@@ -971,18 +1030,17 @@ class Tools2D:
         异常:
         ValueError: 未找到线段或输入格式错误。
         """
-        A_info=self.Segmentline_get_info(A_seg_Chain_or_2pointxy)
+        A_info = self.Segmentline_get_info(A_seg_Chain_or_2pointxy)
         if A_info is None:
             raise ValueError(f"没有找到A线段{A_seg_Chain_or_2pointxy}")
-        Ax1,Ay1=A_info['location'][0]
-        Ax2,Ay2=A_info['location'][1]
+        Ax1, Ay1 = A_info['location'][0]
+        Ax2, Ay2 = A_info['location'][1]
         B_info = self.Segmentline_get_info(B_seg_Chain_or_2pointxy)
 
         if B_info is None:
             raise ValueError(f"没有找到线段{B_seg_Chain_or_2pointxy}")
         Bx1, By1 = B_info['location'][0]
         Bx2, By2 = B_info['location'][1]
-
 
         # 特殊输入情况 防止报错
         if Bx1 == Bx2 and By1 == By2 and Ax1 == Ax2 and Ay1 == Ay2:
@@ -1044,6 +1102,7 @@ class Tools2D:
             return x, y
         else:
             return None  # 交点不在线段范围内
+
 
     def intersection_line_and_Segmentline(self, segline_chain, line='a'):
         """
@@ -1108,6 +1167,7 @@ class Tools2D:
             else:
                 return None
 
+
     def intersection_2line(self, Aline_letter_or_kba_dic, Bline_letter_or_kba_dic):
         """
         :param Aline_letter_or_kba_dic: 可以是代号，也可以是save_line(temp=true)的返回值：一个包含k，b，a的字典
@@ -1115,7 +1175,7 @@ class Tools2D:
         返回值:[x,y]
         """
 
-        #判断是id还是dict
+        # 判断是id还是dict
         if isinstance(Aline_letter_or_kba_dic, str):
             detail_dicA = self.line_dic[Aline_letter_or_kba_dic]
         else:
@@ -1125,11 +1185,11 @@ class Tools2D:
         else:
             detail_dicB = Bline_letter_or_kba_dic
 
-        #判断是否为有向直线,转化为函数
+        # 判断是否为有向直线,转化为函数
         if 'directed' in detail_dicA and detail_dicA['directed'] is True:
-            detail_dicA = self.directed_line_to_line(detail_dicA,temp=True)
+            detail_dicA = self.directed_line_to_line(detail_dicA, temp=True)
         if 'directed' in detail_dicB and detail_dicB['directed'] is True:
-            detail_dicB = self.directed_line_to_line(detail_dicB,temp=True)
+            detail_dicB = self.directed_line_to_line(detail_dicB, temp=True)
 
         k_A = detail_dicA['k']
         b_A = detail_dicA['b']
@@ -1152,20 +1212,22 @@ class Tools2D:
 
         return [x, y]
 
+
     def Segmentline_shadow_on_axis(self, Chain_or_2pointxy):
         """
         求一条线段分别在x轴和y轴的投影
         :param Chain_or_2pointxy: 既可以是A-B形式 也可以是[x,y][x,y]
         :return: 返回一个列表，包含两个范围[[x_min, x_max], [y_min, y_max]]
         """
-        Seg_info=self.Segmentline_get_info(Chain_or_2pointxy)
+        Seg_info = self.Segmentline_get_info(Chain_or_2pointxy)
         if Seg_info is None:
             raise ValueError(f"查找{Chain_or_2pointxy}失败")
-        x1,y1=Seg_info['location'][0]
-        x2,y2=Seg_info['location'][1]
+        x1, y1 = Seg_info['location'][0]
+        x2, y2 = Seg_info['location'][1]
         x_range = [min(x1, x2), max(x1, x2)]
         y_range = [min(y1, y2), max(y1, y2)]
         return [x_range, y_range]
+
 
     def Segmentline_to_line(self, chain_or_2pointxy, back_range=False, temp=False):
         """
@@ -1222,6 +1284,7 @@ class Tools2D:
 
         return back
 
+
     def line_chain_or_dic(self, line_chain_or_dic):
         """
         此方法无论输入的是dict还是'代号'
@@ -1236,29 +1299,34 @@ class Tools2D:
             return False
         return detail_line_dic
 
-    def distance_point_to_line(self,point,line):
-        #linedic例子:{'a': {'str': 'y=3x+100', 'k': 3, 'b': 100}}
+
+    def distance_point_to_line(self, point, line):
+        # linedic例子:{'a': {'str': 'y=3x+100', 'k': 3, 'b': 100}}
         point_x = point[0]
         point_y = point[1]
-        if isinstance(line,dict): detail_line_dic = line
-        elif isinstance(line,str): detail_line_dic = self.line_dic[line]
-        else: raise ValueError(f"输入的line不合符规范，为：{line}")
+        if isinstance(line, dict):
+            detail_line_dic = line
+        elif isinstance(line, str):
+            detail_line_dic = self.line_dic[line]
+        else:
+            raise ValueError(f"输入的line不合符规范，为：{line}")
 
-        if detail_line_dic['k']==0:
-            #输入的line是一条水平线
-            return abs(detail_line_dic['b']-point_y)
+        if detail_line_dic['k'] == 0:
+            # 输入的line是一条水平线
+            return abs(detail_line_dic['b'] - point_y)
         if 'a' in detail_line_dic:
-            #输入的是一条垂直线
-            #存在a键的时候 a必定为0 且k必定为-1(line_drop中就是这么规定的)
+            # 输入的是一条垂直线
+            # 存在a键的时候 a必定为0 且k必定为-1(line_drop中就是这么规定的)
             return abs(detail_line_dic['b'] - point_x)
         k_orth = -1 / detail_line_dic['k']
         # 斜率是-1/k的时候垂直
-        result=self.line_solve_general(a=1, k=k_orth, x=point_x, y=point_y)
-        b=result['b']
-        line_orth_dic = self.line_drop(temp=True,k=k_orth,b=b,a=1)
+        result = self.line_solve_general(a=1, k=k_orth, x=point_x, y=point_y)
+        b = result['b']
+        line_orth_dic = self.line_drop(temp=True, k=k_orth, b=b, a=1)
         point = [point_x, point_y]
         point_inter = self.intersection_2line(line_orth_dic, detail_line_dic)
-        return self.distance_2_points(point,point_inter)
+        return self.distance_2_points(point, point_inter)
+
 
     def directed_line_drop(self, location_point=None, direction_vector=None, line_chain_or_dic=None):
         """
@@ -1271,38 +1339,38 @@ class Tools2D:
             raise ValueError("location_point必须是包含两个元素的列表或元组")
         if direction_vector and len(direction_vector) != 2:
             raise ValueError("direction_vector必须是包含两个元素的列表或元组")
-        
-        the_location_point=None
-        the_direction_vector=None
-        line_dict=None
+
+        the_location_point = None
+        the_direction_vector = None
+        line_dict = None
         if line_chain_or_dic:
             line_dict = self.line_chain_or_dic(line_chain_or_dic)
             print(line_dict)
             if not line_dict:
                 raise ValueError(f"提供的Line错误{line_chain_or_dic}")
-            if 'a' in line_dict:#垂直情况 a取值仅为0或1,如果为1就不存在键a
-                the_direction_vector=[0, 1]
+            if 'a' in line_dict:  # 垂直情况 a取值仅为0或1,如果为1就不存在键a
+                the_direction_vector = [0, 1]
                 the_location_point = [-line_dict['b'] / line_dict['k'], 0]
             else:
-                the_direction_vector=[1, line_dict['k']] #常规情况
+                the_direction_vector = [1, line_dict['k']]  # 常规情况
 
         if location_point:
             print(location_point)
             lo_x, lo_y = location_point
-            if line_dict:#提供了起点,判断原点是否符合标准
+            if line_dict:  # 提供了起点,判断原点是否符合标准
                 if self.line_solve(line_dict, lo_x) != lo_y:
                     raise ValueError(f"提供的起点:{location_point}不在直线{line_dict}上")
             the_location_point = location_point
-            
+
         if direction_vector:
             dr_x, dr_y = direction_vector
             if line_dict:
-                if line_dict['k'] != 0 and (dr_y == 0 or not math.isclose(dr_x/dr_y,line_dict['k'])):
+                if line_dict['k'] != 0 and (dr_y == 0 or not math.isclose(dr_x / dr_y, line_dict['k'])):
                     raise ValueError(f"提供的方向{direction_vector}和直线{line_dict}的斜率不匹配")
                 if line_dict['k'] == 0 and dr_y != 0:
                     raise ValueError(f"提供的方向{direction_vector}和水平直线{line_dict}不匹配")
             the_direction_vector = direction_vector
-            
+
         if the_direction_vector and the_direction_vector:
             detail_dic = {
                 'directed': True, 'location_point': the_location_point,
@@ -1312,18 +1380,21 @@ class Tools2D:
             new_letter = self.extract_letter()
             self.line_dic[new_letter] = detail_dic
             return new_letter
-        
+
         raise ValueError(
             f'缺少必要参数: location_point={location_point}, '
             f'direction_vector={direction_vector},'
             f' line_chain_or_dic={line_chain_or_dic}'
         )
 
-    def line_to_directed_line(self,line_chain_or_dic,location_point):
+
+    def line_to_directed_line(self, line_chain_or_dic, location_point):
         return self.directed_line_drop(location_point=location_point, line_chain_or_dic=line_chain_or_dic)
 
+
     # ////////////《面操作》////////////
-    def surface_drop_by_chain(self, chain_of_point, floor=0, color=create_32bit_color(200, 200, 20, 255), fill=False, stroke=None,
+    def surface_drop_by_chain(self, chain_of_point, floor=0, color=create_32bit_color(200, 200, 20, 255), fill=False,
+                              stroke=None,
                               stroke_color=create_32bit_color(0, 0, 0)):
         """
         【center】会自动生成在参数字典中：重心:是所有顶点坐标的平均值
@@ -1337,7 +1408,7 @@ class Tools2D:
                 surf_pointgroup.append(point_xy)
             else:
                 return "false:cant find point by letter"
-        self.surface_chain_to_Segline_group(chain_of_point,visible=False) #确保线段都创建了
+        self.surface_chain_to_Segline_group(chain_of_point, visible=False)  # 确保线段都创建了
         nowdic = {}
         nowdic['floor'] = floor
         all_x, all_y = 0, 0
@@ -1353,7 +1424,9 @@ class Tools2D:
         self.surface_dic[chain_of_point] = nowdic
         return surf_pointgroup
 
-    def surface_drop_by_pointlist(self, apointlist, floor=0, color=create_32bit_color(200, 200, 20, 255), fill=False, stroke=None,
+
+    def surface_drop_by_pointlist(self, apointlist, floor=0, color=create_32bit_color(200, 200, 20, 255), fill=False,
+                                  stroke=None,
                                   stroke_color=create_32bit_color(0, 0, 0)):
         """
         这里输入的链是不需要收尾相接的,如果不相接会自动补全
@@ -1361,6 +1434,7 @@ class Tools2D:
         theletter = self.point_drop_group(apointlist)
         chain = "-".join(theletter)
         self.surface_drop_by_chain(chain, floor, color, fill, stroke, stroke_color)
+
 
     def surface_chain_to_Segline_group(self, chain, floor=0, color=create_32bit_color(0, 0, 0, 255), stroke_weight=3,
                                        visible=True):
@@ -1386,7 +1460,8 @@ class Tools2D:
                 self.Segmentline_drop(q[0], q[1], floor=floor, color=color, stroke_weight=stroke_weight, visible=visible)
         return formatted_pairs
 
-    def is_point_in_surface(self,polx,P):
+
+    def is_point_in_surface(self, polx, P):
         """
            polx接受列表型 也接受非齐次坐标矩阵
            判断点 P 是否在 polx 中（包括在边上）
@@ -1444,6 +1519,7 @@ class Tools2D:
             return 'inside' if not on_edge else 'on_edge'
         return 'on_edge' if on_edge else 'outside'
 
+
     def regular_polygon(self, sides, side_length):
         """。
         参数：
@@ -1481,7 +1557,10 @@ class Tools2D:
     # ////////////《常用操作》////////////
     @staticmethod
     def list_depth(lst):
-        if not isinstance(lst, (list,tuple)):
+        """
+        静态方法
+        """
+        if not isinstance(lst, (list, tuple)):
             # 如果当前不是列表，层数为 0
             return 0
         if not lst:
@@ -1490,12 +1569,14 @@ class Tools2D:
         # 递归判断每个元素的嵌套深度，并取最大值
         return 1 + max(Tools2D.list_depth(item) for item in lst)
 
+
     def get_inter_range(self, a=None, b=None):
         """
         查找a和b的交集
         a和b的格式为[x,y]的范围
         无交集返回None
         """
+
         def get_range(interval):
             # 提取范围的辅助函数
             return min(interval[0], interval[1]), max(interval[0], interval[1])
@@ -1525,6 +1606,8 @@ class Tools2D:
                 raise ValueError(f"输入{b}不是[x,y]形式")
         else:
             return None  # a 和 b 都为 None
+
+
     def clear_letter_mem_capital(self, used):
         """
         清理内存用
@@ -1551,12 +1634,16 @@ class Tools2D:
                 self.letter_index_capital = the_index - 1
                 break
         return back_dic
+
+
     def extract_letter_capital(self):
         if not self.letter_queue_capital:
             # 如果字母队列中不够用了
             self.letter_queue_capital.extend([l + str(self.letter_index_capital + 1) for l in self.alphabetize_Capital])
             self.letter_index_capital += 1
         return self.letter_queue_capital.pop(0)  # 删除队列中的第一项并返回
+
+
     def back_letter_capital(self, letter):
         the_letter_ascii, the_letter_index = self.separate_letter(letter)
         for list_i, i in enumerate(self.letter_queue_capital):
@@ -1576,6 +1663,8 @@ class Tools2D:
                 return
         # 如果能到达此处 输入A100 当前查找到A51 列表为[A50,A51,...,A99]应该加入到末尾
         self.letter_queue_capital.append(letter)
+
+
     def apply_letter_capital(self, letter):
         """
         申请一个指定字母,并从字母表中删除它,成功返回True
@@ -1592,6 +1681,7 @@ class Tools2D:
             self.letter_queue_capital.remove(letter)
             return True
         raise ValueError(f"发生错误,队列为{self.letter_queue_capital},输入值为{letter}")
+
 
     def clear_letter_mem(self, used):
         back_dic = {}
@@ -1614,6 +1704,8 @@ class Tools2D:
                 self.letter_index = the_index - 1
                 break
         return back_dic
+
+
     def extract_letter(self):
         """
         返回提取的字母
@@ -1624,6 +1716,8 @@ class Tools2D:
             self.letter_queue.extend([l + str(self.letter_index + 1) for l in self.alphabetize])
             self.letter_index += 1
         return self.letter_queue.pop(0)  # 删除队列中的第一项并返回
+
+
     def back_letter(self, letter):
         the_letter_ascii, the_letter_index = self.separate_letter(letter)
         for list_i, i in enumerate(self.letter_queue):
@@ -1643,6 +1737,7 @@ class Tools2D:
                 return
         # 如果能到达此处 输入A100 当前查找到A51 列表为[A50,A51,...,A99]应该加入到末尾
         self.letter_queue.append(letter)
+
 
     def separate_letter(self, letter):
         """
@@ -1710,6 +1805,7 @@ class Screen_draw:
 
     def screen_draw_vector(self, vector_or_vector_list, start_point):
         self.tools.reset()
+
         def arrow(vector):
             arrow_vector_A = self.tools.vector_rotate(vector, 180 - 30)
             arrow_vector_B = self.tools.vector_rotate(vector, -(180 - 30))
@@ -1738,7 +1834,8 @@ class Screen_draw:
             self.tools.Segmentline_drop(i[0], i[1])
         self.screen_draw_SegmentLine(self.tools.get_Segmentline_dic(), floor=0)
 
-    def draw_directed_line(self, line_detail_dict, color=create_32bit_color(10, 10, 0, 255), stroke_weight=3, floor=0, minimum=50):
+    def draw_directed_line(self, line_detail_dict, color=create_32bit_color(10, 10, 0, 255), stroke_weight=3, floor=0,
+                           minimum=50):
         self.tools.reset()
         input_value = {'color': color, 'stroke_weight': stroke_weight, 'floor': floor}
         screen_info = self.screen_get_info()
@@ -1890,7 +1987,8 @@ class Screen_draw:
 
         self.py5.lines(np.array(line_to_draw, dtype=np.float32))
 
-    def screen_draw_directed_line(self, directed_line_dict_or_list, color=create_32bit_color(10, 10, 0, 255), stroke_weight=3):
+    def screen_draw_directed_line(self, directed_line_dict_or_list, color=create_32bit_color(10, 10, 0, 255),
+                                  stroke_weight=3):
         self.tools.reset()
         skip_times = 0
         if isinstance(directed_line_dict_or_list, dict):
@@ -1950,6 +2048,3 @@ class Screen_draw:
         x = self.py5.width / 2 + x
         y = self.py5.height / 2 - y
         return [x, y]
-
-
-
