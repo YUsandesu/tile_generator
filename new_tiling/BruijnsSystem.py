@@ -337,66 +337,51 @@ class BruijnsSystem:
         # 在【0，0】创建一个多边形
         vectors_origin_np = BruijnsSystem.create_origin_girds_numpy(sides, origin_norm)
         data_df['origin_vector'] = vectors_origin_np.tolist()
-        # print(f'输出data_pd:\n{data_df}')
-
+        print(f'输出data_pd:\n{data_df}')
 
         # 取vector的垂直向量vector_pen
-        theta = np.deg2rad(90)
-        rotation_matrix = np.array([
-            [np.cos(theta), -np.sin(theta)],
-            [np.sin(theta), np.cos(theta)]
-        ])
-        vectors_origin_pen_np = vectors_origin_np @ rotation_matrix.T
+        vectors_origin_pen_np = Tools2D.vector_group_rotate_np(vectors_origin_np,90)
         data_df['pen_origin_vector'] = vectors_origin_pen_np.tolist()
         print(data_df['pen_origin_vector'])
-        breakpoint()
+
         # 定义有向直线:
         for d_v in vectors_origin_pen_np.tolist():
             self.tools.directed_line_drop(location_point=center, direction_vector=d_v)
-
-        # origin_directed_lines = tools.get_line_dic()
-        origin_directed_lines = tools.line_dic
+        origin_directed_lines = self.tools.line_dic
         origin_directed_lines_id = list(origin_directed_lines.keys())
 
-        ## origin_directed_lines_id and origin_directed_lines can be obtained from origin_directed_lines.items()
-        # origin_directed_lines_id = []
-        # origin_directed_lines_temp = []
-        # for key, value in origin_directed_lines.items():
-        #     origin_directed_lines_id.append(key)
-        #     origin_directed_lines_temp.append(value)
-
-        # origin_vector.index == vectors_origin[times]
-        temp_result = []
-        for times, origin_line_id in enumerate(origin_directed_lines_id):
+        # temp_result = []
+        for times, origin_line_id in enumerate(origin_directed_lines_id):# enumerate can be removed
             # 按照vector的方向,改变vector的模长-->获得平移向量distance_vector
             # TODO 此处模长可以不用以相同数值平移,可以存在长度差,应该再增加一个参数调整长度差
-            distance_shift_vector = tools.vector_change_norm(vectors_origin[times], shifted_distance)
-            temp_result.append(distance_shift_vector)
-            # return_girds_data[times]['shift_vector_based_distance'] = distance_shift_vector
-            tools.line_shift(origin_line_id, distance_shift_vector, rewrite=True, drop=False)
-        return_girds_df['shift_vector_based_distance'] = temp_result  # enumerate can be removed
+            distance_shift_vector = self.tools.vector_change_norm(data_df['origin_vector'][times], shifted_distance)
+            # temp_result.append(distance_shift_vector)
+            self.tools.line_shift(origin_line_id, distance_shift_vector, rewrite=True, drop=False)
+        # data_df['shift_vector_based_distance'] = temp_result
 
-        origin_directed_lines = list(origin_directed_lines.values())  # 取出的直线数据,准备平移
-        for t, o_d_line in enumerate(origin_directed_lines):
-            return_girds_data[t]['origin_directed_line'] = o_d_line
-        return_girds_df['origin_directed_line'] = origin_directed_lines
-        print(return_girds_df.head())
+        data_df['origin_directed_line'] = list(self.tools.line_dic.values()) # 取出的直线数据,准备平移
+
+        pd.set_option('display.max_rows', None)
+        pd.set_option('display.max_columns', None)
+        print(data_df)
+        breakpoint()
         # -------------------------------------------------------------------------------------------------- #
-        tools.reset()  # 清除内容
+        self.tools.reset()  # 清除内容
 
         # 平移gird_0，构建平行网格gird
+        list_temp = []
         for t, line_dict in enumerate(origin_directed_lines):  # 遍历原始gird每一条线
             return_girds_data[t]['girds'] = {0: return_girds_data[t]['origin_directed_line']}
             for the_time, i in enumerate(range(1, (num_of_line - 1) // 2 + 1)):  # (num_of_line-1)是因为去掉原始line的1,
                 # 最后+1是因为range不包括最后一项
 
                 # vector_origin的顺序和origin_lines的方向是一致的, 长度取zoom的倍数即可
-                positive_vector = tools.vector_change_norm(vectors_origin[t], gap * i)
-                negative_vector = tools.vector_change_norm(vectors_origin[t], gap * -i)
+                positive_vector = self.tools.vector_change_norm(vectors_origin[t], gap * i)
+                negative_vector = self.tools.vector_change_norm(vectors_origin[t], gap * -i)
 
                 # 和origin_vector同方向的为正,反方向的为负
-                line_positive_detail = tools.line_shift(line_dict, positive_vector, rewrite=False, drop=False)
-                line_negative_detail = tools.line_shift(line_dict, negative_vector, rewrite=False, drop=False)
+                line_positive_detail = self.tools.line_shift(line_dict, positive_vector, rewrite=False, drop=False)
+                line_negative_detail = self.tools.line_shift(line_dict, negative_vector, rewrite=False, drop=False)
 
                 return_girds_data[t]['girds'][the_time + 1] = line_positive_detail  # 命名方式1,2,3...
                 return_girds_data[t]['girds'][-(the_time + 1)] = line_negative_detail  # -1,-2,-3...
@@ -409,4 +394,4 @@ class BruijnsSystem:
         return return_girds_data
 
 if __name__ == "__main__":
-    BruijnsSystem()
+    BruijnsSystem(shifted_distance=10)
