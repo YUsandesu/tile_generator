@@ -40,6 +40,8 @@ https://www.math.utah.edu/~treiberg/PenroseSlides.pdf
 Penrose tiling 具有自相似性，可以通过充气和收缩规则来生成和分析。研究 Bruijn's grid 方法如何体现充气和收缩规则是一个有趣的方向。
 
 # 当前进度:
+TODO _sort_girds_interaction 修改一下返回类型,使用pandas
+
 https://www.adamponting.com/de-bruijn-tilings/
 上文给出了一个全新的信息,**就算shift的距离不是相等的,创建的网络依然是可以平铺的**
 **甚至可以是不完全等分gird**
