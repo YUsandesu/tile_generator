@@ -381,7 +381,26 @@ class Tools2D:
         return [back_x, back_y]
 
     @staticmethod
-    def vector_group_rotate_np(vector_group: np.ndarray | list[list], theta):
+    def vector_group_rotate_np(vector_group:list|np.ndarray, theta):
+        """
+        使用numpy方法旋转向量组
+
+        参数:
+            vector_group (np.ndarray | list[list]): 要旋转的向量组或单个向量。
+                - NumPy数组,shape: (n, 2) 或 (2)
+                - Python列表: [[x1, y1], ...] 或 [x, y]
+            theta (float): 旋转角度（度）。正值为逆时针。
+
+        返回:
+            np.ndarray: 旋转后的向量组，形状与输入 `vector_group` 转换后的NumPy数组形状相同。
+
+        ValueError: 输入 vector_group 格式错误（非二维向量或列表深度错误）。
+        UserWarning: 输入为单个向量时发出警告。
+
+        示例:
+            >>> Tools2D.vector_group_rotate_np(np.array([[1, 0], [0, 1]]), 45)
+        """
+
         if isinstance(vector_group, np.ndarray):
             if vector_group.ndim == 1 and len(vector_group) == 2:
                 #ndim:number of dimensions 实际取出来的是嵌套层数
