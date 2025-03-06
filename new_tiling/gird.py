@@ -11,7 +11,7 @@ def setup():
     slider('distance', location=(50,py5.height-90), value=15, range_val=(0,500))
     slider('zoom', location=(50,py5.height-60), value=150, range_val=(0,500))
     slider('num', location=(50,py5.height-30), size=(500,20), value=3, range_val=(0,500))
-    gird_data = BruijnsSystem.create_gird(5 , gap=150, num_of_line=3, center=sd.screen_axis(0, 0))
+    gird_data = BruijnsSystem.create_gird(5, gap=150, max_num_of_line=3, center=sd.screen_axis(0, 0))
     #print(f"初次生成the_gird:{the_gird}")
     # print("Here")
     # print(gird_data)
@@ -27,7 +27,7 @@ def draw():
             shifted_distance=back['distance'],
             gap=back['zoom'],
             center=sd.screen_axis(0,0),
-            num_of_line=back['num']
+            max_num_of_line=back['num']
         )
 
     py5.background(255)
