@@ -351,12 +351,12 @@ class BruijnsSystem:
         self.data_df.loc[:,0] = list(self.tools.line_dic.values())  #创建origin_d_line
         self.tools.reset()  # 清除内容
 
+        #设定循环次数
         target_list = range(1, (max_num_of_line - sides) // (2 * sides) + 1)
         # 确保列的数据类型支持任意对象
         for col in target_list:
             self.data_df[col] = [None] * len(self.data_df)
             self.data_df[-col] = [None] * len(self.data_df)
-
         # 平移gird_0，构建平行网格gird
         for t, line_dict in self.data_df.loc[:, 0].to_dict().items():  # 遍历原始gird每一条线
             for i in target_list:  # (num_of_line-1)是因为去掉原始line的1,
@@ -372,7 +372,7 @@ class BruijnsSystem:
                 #当使用loc进行赋值时，赋值的值类型和形状需要与目标位置匹配,所以这里使用at
                 self.data_df.at[t,i] = line_positive_detail  # 命名方式1,2,3...
                 self.data_df.at[t,-i] = line_negative_detail  # -1,-2,-3...
-        # pd_print_all(data_df)
+        pd_print_all(self.data_df)
 
 def pd_print_all(df:pd.DataFrame):
     """
