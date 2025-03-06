@@ -8,13 +8,11 @@ import warnings
 from itertools import islice
 
 class BruijnsSystem:
-    def __init__(self, girds_data=None, sides=5, origin_norm=40,shifted_distance=0, gap=100, center=(100, 100), num_of_line=15):
+    def __init__(self, sides=5, origin_norm=80, shifted_distance=0, gap=100, center=(100, 100), max_num_of_line=50):
         self.tools = Tools2D()
-        if girds_data:
-            self.girds_data = girds_data
-        else:
-            self.girds_data = self.create_gird(sides=sides, origin_norm=origin_norm,shifted_distance=shifted_distance, gap=gap, center=center,
-                                               num_of_line=num_of_line)
+        self.data_df = pd.DataFrame()
+        self.create_gird(sides=sides, origin_norm=origin_norm, shifted_distance=shifted_distance, gap=gap, center=center,
+                                               max_num_of_line=max_num_of_line)
         self.interaction_data_point_location: dict[tuple[float | int]:list[int]] = {}  # 按坐标点聚合的线段id信息
         self.interaction_data_line_id: dict[tuple[int]:list[float | int]] = {}  # 按线段id聚合的坐标点信息
         self.get_girds_interaction()
@@ -324,7 +322,7 @@ class BruijnsSystem:
         back_nparray = np.column_stack([x, y])# all the input arrays must have same number of dimensions维度
         return back_nparray
 
-    def create_gird(self,sides,origin_norm=80, shifted_distance=0, gap=100, center=(100, 100), num_of_line=50):
+    def create_gird(self, sides=5, origin_norm=80, shifted_distance=0, gap=100, center=(100, 100), max_num_of_line=50):
         """
         此函数用于创建一组网格系统
         distance：初始向量取垂直线以后，相互远离的距离。
@@ -332,66 +330,57 @@ class BruijnsSystem:
         返回一个列表，每个列表中包含一个方向的平行网格线，由所有网格线组成一个gird
         """
         self.tools.reset()
-        data_df = pd.DataFrame()
-
+        self.data_df = pd.DataFrame() #TODO 这里应该判断sides数量是否改变了,如果没改变可以继续沿用,只是调整直线数量
         # 在【0，0】创建一个多边形
         vectors_origin_np = BruijnsSystem.create_origin_girds_numpy(sides, origin_norm)
-        data_df['origin_vector'] = vectors_origin_np.tolist()
-        print(f'输出data_pd:\n{data_df}')
+        self.data_df['origin_vector'] = vectors_origin_np.tolist()
 
         # 取vector的垂直向量vector_pen
         vectors_origin_pen_np = Tools2D.vector_group_rotate_np(vectors_origin_np,90)
-        data_df['pen_origin_vector'] = vectors_origin_pen_np.tolist()
-        print(data_df['pen_origin_vector'])
+        self.data_df['direction_vector'] = vectors_origin_pen_np.tolist()
 
         # 定义有向直线:
         for d_v in vectors_origin_pen_np.tolist():
             self.tools.directed_line_drop(location_point=center, direction_vector=d_v)
-        origin_directed_lines = self.tools.line_dic
-        origin_directed_lines_id = list(origin_directed_lines.keys())
-
-        # temp_result = []
-        for times, origin_line_id in enumerate(origin_directed_lines_id):# enumerate can be removed
-            # 按照vector的方向,改变vector的模长-->获得平移向量distance_vector
+        line_key_list=list(self.tools.line_dic.keys())
+        for index,line_id in enumerate(line_key_list):#根据distance平移
             # TODO 此处模长可以不用以相同数值平移,可以存在长度差,应该再增加一个参数调整长度差
-            distance_shift_vector = self.tools.vector_change_norm(data_df['origin_vector'][times], shifted_distance)
-            # temp_result.append(distance_shift_vector)
-            self.tools.line_shift(origin_line_id, distance_shift_vector, rewrite=True, drop=False)
-        # data_df['shift_vector_based_distance'] = temp_result
+            distance_shift_vector = self.tools.vector_change_norm(self.data_df['origin_vector'][index], shifted_distance)
+            self.tools.line_shift(line_id, distance_shift_vector, rewrite=True, drop=False)
 
-        data_df['origin_directed_line'] = list(self.tools.line_dic.values()) # 取出的直线数据,准备平移
-
-        pd.set_option('display.max_rows', None)
-        pd.set_option('display.max_columns', None)
-        print(data_df)
-        breakpoint()
-        # -------------------------------------------------------------------------------------------------- #
+        self.data_df.loc[:,0] = list(self.tools.line_dic.values())  #创建origin_d_line
         self.tools.reset()  # 清除内容
 
+        target_list = range(1, (max_num_of_line - sides) // (2 * sides) + 1)
+        # 确保列的数据类型支持任意对象
+        for col in target_list:
+            self.data_df[col] = [None] * len(self.data_df)
+            self.data_df[-col] = [None] * len(self.data_df)
+
         # 平移gird_0，构建平行网格gird
-        list_temp = []
-        for t, line_dict in enumerate(origin_directed_lines):  # 遍历原始gird每一条线
-            return_girds_data[t]['girds'] = {0: return_girds_data[t]['origin_directed_line']}
-            for the_time, i in enumerate(range(1, (num_of_line - 1) // 2 + 1)):  # (num_of_line-1)是因为去掉原始line的1,
+        for t, line_dict in self.data_df.loc[:, 0].to_dict().items():  # 遍历原始gird每一条线
+            for i in target_list:  # (num_of_line-1)是因为去掉原始line的1,
                 # 最后+1是因为range不包括最后一项
-
                 # vector_origin的顺序和origin_lines的方向是一致的, 长度取zoom的倍数即可
-                positive_vector = self.tools.vector_change_norm(vectors_origin[t], gap * i)
-                negative_vector = self.tools.vector_change_norm(vectors_origin[t], gap * -i)
-
+                o_v = self.data_df['origin_vector'][t]
+                shift_distance = gap * i
+                positive_vector = self.tools.vector_change_norm(o_v, shift_distance)
+                negative_vector = self.tools.vector_change_norm(o_v, -shift_distance)
                 # 和origin_vector同方向的为正,反方向的为负
                 line_positive_detail = self.tools.line_shift(line_dict, positive_vector, rewrite=False, drop=False)
                 line_negative_detail = self.tools.line_shift(line_dict, negative_vector, rewrite=False, drop=False)
+                #当使用loc进行赋值时，赋值的值类型和形状需要与目标位置匹配,所以这里使用at
+                self.data_df.at[t,i] = line_positive_detail  # 命名方式1,2,3...
+                self.data_df.at[t,-i] = line_negative_detail  # -1,-2,-3...
+        # pd_print_all(data_df)
 
-                return_girds_data[t]['girds'][the_time + 1] = line_positive_detail  # 命名方式1,2,3...
-                return_girds_data[t]['girds'][-(the_time + 1)] = line_negative_detail  # -1,-2,-3...
-
-        # print(f'\nback_list:\n')
-        # for t, i in enumerate(back_list):
-        #     print(f'\n{t}:\n{i}')
-        print('完整输出:')
-        print(return_girds_data)
-        return return_girds_data
+def pd_print_all(df:pd.DataFrame):
+    """
+       打印整个DataFrame，不论其大小。
+    """
+    with pd.option_context('display.max_rows', None,
+                           'display.max_columns', None):
+        print(df)
 
 if __name__ == "__main__":
-    BruijnsSystem(shifted_distance=10)
+    BruijnsSystem(sides=5, shifted_distance=10, max_num_of_line=20)
