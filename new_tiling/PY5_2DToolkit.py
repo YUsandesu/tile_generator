@@ -1422,7 +1422,6 @@ class Tools2D:
         line_dict = None
         if line_chain_or_dic:
             line_dict = self.line_chain_or_dic(line_chain_or_dic)
-            print(line_dict)
             if not line_dict:
                 raise ValueError(f"提供的Line错误{line_chain_or_dic}")
             if 'a' in line_dict:  # 垂直情况 a取值仅为0或1,如果为1就不存在键a
@@ -1432,7 +1431,6 @@ class Tools2D:
                 the_direction_vector = [1, line_dict['k']]  # 常规情况
 
         if location_point:
-            print(location_point)
             lo_x, lo_y = location_point
             if line_dict:  # 提供了起点,判断原点是否符合标准
                 if self.line_solve(line_dict, lo_x) != lo_y:
@@ -1453,7 +1451,6 @@ class Tools2D:
                 'directed': True, 'location_point': the_location_point,
                 'direction_vector': the_direction_vector
             }
-            print(detail_dic)
             new_letter = self.extract_letter()
             self.line_dic[new_letter] = detail_dic
             return new_letter
