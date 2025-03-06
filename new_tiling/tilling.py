@@ -30,7 +30,7 @@ def draw():
 if __name__ == "__main__":
     sd = Screen_draw(py5)
     tool = Tools2D()
-    till = BruijnsSystem(sides=5, num_of_line=30)
+    till = BruijnsSystem(sides=5, max_num_of_line=30)
     the_p = till.interaction_data_line_id[(0, 0)][60]
     print(f'选取交点:{the_p}')
     tilling_data = till.create_tilling(the_p, num=0)
