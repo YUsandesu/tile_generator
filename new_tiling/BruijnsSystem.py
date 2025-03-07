@@ -12,7 +12,7 @@ class BruijnsSystem:
     def __init__(self, sides=5, origin_norm=80, shifted_distance=0, gap=100, center=(100, 100), max_num_of_line=50):
         self.tools = Tools2D()
         self.data_df = pd.DataFrame()
-        self.data_inter_df = pd.DataFrame()
+        self.inter_df = pd.DataFrame()
         self.create_gird(sides=sides, origin_norm=origin_norm, shifted_distance=shifted_distance, gap=gap, center=center,
                                                max_num_of_line=max_num_of_line)
         self.interaction_data_point_location: dict[tuple[float | int]:list[int]] = {}  # 按坐标点聚合的线段id信息
@@ -22,39 +22,41 @@ class BruijnsSystem:
 
     def get_girds_interaction(self):
         """
-        查找两个line字典之间的所有焦点
+        查找所有焦点
+            此方法用于查找并计算不同 'gird' （网格线组）之间所有线段的交点。
+            它遍历数据 DataFrame 中表示不同 'gird' 的列，并两两比较 'gird' 内的线段，
+            使用 `intersection_2line` 方法计算线段交点。
+            所有找到的交点将被存储在临时字典中，并最终转换为 DataFrame 格式。
+        self.inter_df:
+            包含线段交点信息的 DataFrame.列和索引均为多级索引.
+            第一级索引表示 'gird' 的索引，第二级索引表示该层gird中有向直线的编号(line_num)。
+            值表示交点坐标[float,float]。可以通过.loc[(index,num),(index,num)]查询任意两条线的交点
         """
         tittles = self.data_df.columns
-        girds_t = tittles[tittles.get_loc(0):] #内部line的id列表
-        girds_dict = self.data_df.loc[:,girds_t].to_dict('index')
-        girds_index = list(girds_dict.keys()) #index列表
-        new_columns =[(index,num)for index in girds_index for num in girds_t]#列表表达式嵌套循环从右向左优先级
+        girds_t = tittles[tittles.get_loc(0):]  # line的id列表
+        girds_dict = self.data_df.loc[:, girds_t].to_dict('index')   # 带数字索引的dict,gird为键
 
-        # 创建一个字典用于批量构建 DataFrame
-        inter_dict = {}
-        for t_out in girds_index[:-1]:
-            out_gird = girds_dict[t_out]
-            for t_in in girds_index[girds_index.index(t_out) + 1:]:
-                in_gird = girds_dict[t_in]
-                # girds 中遍历每一条线
-                for number_out, line_detail_out in out_gird.items():
-                    for number_in, line_detail_in in in_gird.items():
+        temp_dict = {}  # 创建一个字典用于批量构建 DataFrame
+        for t_out,out_gird in islice(girds_dict.items(),len(girds_dict)-1): # 遍历 gird_dict，外层循环遍历到倒数第二个 gird
+            for t_in,in_gird in islice(girds_dict.items(),t_out+1,len(girds_dict)): # 内层循环遍历从外层 gird 的下一个 gird 开始到最后一个 gird
+                # 遍历每一条线
+                for number_out, line_detail_out in out_gird.items(): # 遍历外层 gird 中的每一条线
+                    for number_in, line_detail_in in in_gird.items(): # 遍历内层 gird 中的每一条线
                         interaction_point = self.tools.intersection_2line(line_detail_out, line_detail_in)
                         if interaction_point is not None:
-                            if (t_out, number_out) not in inter_dict:
-                                inter_dict[(t_out, number_out)] = {}
-                            if (t_in, number_in) not in inter_dict:
-                                inter_dict[(t_in, number_in)] = {}
-
-                            # 将交互点加入到 inter_dict 对应的位置
-                            inter_dict[(t_out, number_out)][(t_in, number_in)] = interaction_point
-                            inter_dict[(t_in, number_in)][(t_out, number_out)] = interaction_point  # 对称点
-        print(f'查找完毕{humanize.naturalsize(deep_get_size(inter_dict))}')
+                            if (t_out, number_out) not in temp_dict:
+                                temp_dict[(t_out, number_out)] = {}
+                            if (t_in, number_in) not in temp_dict:
+                                temp_dict[(t_in, number_in)] = {}
+                            # 将交互点加入到 temp_dict 对应的位置
+                            temp_dict[(t_out, number_out)][(t_in, number_in)] = interaction_point
+                            temp_dict[(t_in, number_in)][(t_out, number_out)] = interaction_point  # 对称点
+        # print(f'查找完毕temp_dict占用:{humanize.naturalsize(deep_get_size(temp_dict))}')
         # 将嵌套字典转换为 DataFrame
-        inter_df = pd.DataFrame(inter_dict)
-        print(f'格式转换完毕{humanize.naturalsize(inter_df.memory_usage(deep=True).sum())}')
-        pd_print(inter_df)
-        print('(2,0)and(1,1):',inter_df.loc[(2,0),(1,1)])
+        self.inter_df = pd.DataFrame(temp_dict)
+        # print(f'格式转换完毕,inter_df占用:{humanize.naturalsize(inter_df.memory_usage(deep=True).sum())}')
+        # pd_print(inter_df)
+        # print('(2,0)and(1,1):',inter_df.loc[(2,0),(1,1)])
 
     def _sort_girds_interaction(self):
         # 指向1象限是x自小到大排列(+,+)=+,指向2象限是x自大到小排列(-,+)=-
