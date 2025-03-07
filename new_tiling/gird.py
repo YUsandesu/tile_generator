@@ -2,7 +2,7 @@ from the_control import *
 from PY5_2DToolkit import *
 from BruijnsSystem import BruijnsSystem
 
-
+#max_num_of_line超过400条容易卡死
 def setup():
     global gird_data
     py5.size(800, 600)
@@ -11,9 +11,8 @@ def setup():
     slider('sides', (50,py5.height-120), value=5, range_val=(3,15))
     slider('distance', location=(50,py5.height-90), value=15, range_val=(0,500))
     slider('zoom', location=(50,py5.height-60), value=150, range_val=(0,500))
-    slider('num', location=(50,py5.height-30), size=(500,20), value=3, range_val=(0,500))
-    bs.create_gird(5, gap=150, max_num_of_line=50, center=sd.screen_axis(0, 0))
-    gird_data = bs.get_gird_lines_dict()
+    slider('num', location=(50,py5.height-30), size=(500,20), value=30, range_val=(0,2000))
+    bs.create_gird(5, gap=150, max_num_of_line=30, center=sd.screen_axis(0, 0))
     #print(f"初次生成the_gird:{the_gird}")
     # print("Here")
     # print(gird_data)
@@ -31,11 +30,11 @@ def draw():
             center=sd.screen_axis(0, 0),
             max_num_of_line=back['num']
         )
-        gird_data = bs.get_gird_lines_dict()
+
     py5.background(255)
 
-    the_lines_dict_list = [each_info for _,each_info in gird_data.items()] #取出每组gird
-    the_origin_gird = [each_info[0] for _,each_info in gird_data.items()]
+    the_lines_dict_list = bs.get_gird_lines_list() #取出每组gird
+    the_origin_gird = bs.data_df.loc[:,0].tolist()
     the_vector = bs.data_df.loc[:,'origin_vector'].tolist()
 
     sd.screen_draw_vector(the_vector,sd.screen_axis(-150,150))#画出原始向量
