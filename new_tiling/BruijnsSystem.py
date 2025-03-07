@@ -13,20 +13,16 @@ class BruijnsSystem:
         self.tools = Tools2D()
         self.data_df = pd.DataFrame()
         self.inter_df = pd.DataFrame()
-        self.create_gird(sides=sides, origin_norm=origin_norm, shifted_distance=shifted_distance, gap=gap, center=center,
-                                               max_num_of_line=max_num_of_line)
-        self.interaction_data_point_location: dict[tuple[float | int]:list[int]] = {}  # 按坐标点聚合的线段id信息
-        self.interaction_data_line_id: dict[tuple[int]:list[float | int]] = {}  # 按线段id聚合的坐标点信息
-        # self.get_girds_interaction()
-        # print(f'共有:{len(self.interaction_data_point_location)}个点')
 
-    def get_girds_interaction(self):
+    def get_girds_interaction(self,rebuild=True):
         """
         查找所有焦点
             此方法用于查找并计算不同 'gird' （网格线组）之间所有线段的交点。
             它遍历数据 DataFrame 中表示不同 'gird' 的列，并两两比较 'gird' 内的线段，
             使用 `intersection_2line` 方法计算线段交点。
             所有找到的交点将被存储在临时字典中，并最终转换为 DataFrame 格式。
+        参数:
+            rebuild:是否重新完整重建inter_df,可以传入create_gird的返回值
         self.inter_df:
             包含线段交点信息的 DataFrame.列和索引均为多级索引.
             第一级索引表示 'gird' 的索引，第二级索引表示该层gird中有向直线的编号(line_num)。
@@ -36,9 +32,32 @@ class BruijnsSystem:
         girds_t = tittles[tittles.get_loc(0):]  # line的id列表
         girds_dict = self.data_df.loc[:, girds_t].to_dict('index')   # 带数字索引的dict,gird为键
 
+        if rebuild is False:
+            #从out_dict删除已经创建过的点,不进行遍历
+            last_num = set(self.inter_df.columns.get_level_values(1).tolist())
+            now_num = set(girds_dict[0].keys())
+            if len(last_num)>len(now_num):
+                # 这时是缩小了范围
+                to_del_num = last_num - now_num
+                sides = range(len(self.data_df))
+                to_del_index = [(index,num)for index in sides for num in to_del_num]
+                self.inter_df.drop(index=to_del_index,inplace=True)
+                self.inter_df.drop(columns=to_del_index,inplace=True)
+                return
+            to_del_num = last_num & now_num
+            in_dict = girds_dict.copy()
+            for index,_ in girds_dict.items():
+                for i in to_del_num:
+                    girds_dict[index].pop(i)
+            out_dict = girds_dict
+        else:
+            in_dict = girds_dict
+            out_dict = girds_dict
+
+        #============================= main =============================
         temp_dict = {}  # 创建一个字典用于批量构建 DataFrame
-        for t_out,out_gird in islice(girds_dict.items(),len(girds_dict)-1): # 遍历 gird_dict，外层循环遍历到倒数第二个 gird
-            for t_in,in_gird in islice(girds_dict.items(),t_out+1,len(girds_dict)): # 内层循环遍历从外层 gird 的下一个 gird 开始到最后一个 gird
+        for t_out,out_gird in islice(out_dict.items(),len(out_dict)-1): # 遍历 gird_dict，外层循环遍历到倒数第二个 gird
+            for t_in,in_gird in islice(in_dict.items(),t_out+1,len(in_dict)): # 内层循环遍历从外层 gird 的下一个 gird 开始到最后一个 gird
                 # 遍历每一条线
                 for number_out, line_detail_out in out_gird.items(): # 遍历外层 gird 中的每一条线
                     for number_in, line_detail_in in in_gird.items(): # 遍历内层 gird 中的每一条线
@@ -52,11 +71,10 @@ class BruijnsSystem:
                             temp_dict[(t_out, number_out)][(t_in, number_in)] = interaction_point
                             temp_dict[(t_in, number_in)][(t_out, number_out)] = interaction_point  # 对称点
         # print(f'查找完毕temp_dict占用:{humanize.naturalsize(deep_get_size(temp_dict))}')
-        # 将嵌套字典转换为 DataFrame
-        self.inter_df = pd.DataFrame(temp_dict)
+        self.inter_df = pd.DataFrame(temp_dict)  # 将嵌套字典转换为DataFrame
         # print(f'格式转换完毕,inter_df占用:{humanize.naturalsize(inter_df.memory_usage(deep=True).sum())}')
         # pd_print(inter_df)
-        # print('(2,0)and(1,1):',inter_df.loc[(2,0),(1,1)])
+        # 调用示例>>>self.inter_df.loc[(2,0),(1,1)]
 
     def _sort_girds_interaction(self):
         # 指向1象限是x自小到大排列(+,+)=+,指向2象限是x自大到小排列(-,+)=-
@@ -388,11 +406,47 @@ class BruijnsSystem:
         # =============================== main ===============================
         return is_main_changed
 
-def pd_print(df:pd.DataFrame):
+    def get_gird_lines_dict(self):
+        tittle = self.data_df.columns
+        now_num_list = tittle[tittle.get_loc(0):]
+        return self.data_df.loc[:, now_num_list].T.to_dict()
+
+
+
+def pd_print(df: pd.DataFrame, max_length=20):
     """
-       打印整个DataFrame，不论其大小。
+    打印整个DataFrame，不论其大小，长值会被从中间缩略显示。
+
+    :param df: 需要打印的 DataFrame
+    :param max_length: 字符串的最大显示长度
     """
-    print(tabulate(df, headers='keys', tablefmt='psql'))
+
+    def truncate_middle(val):
+        def format_float(n):
+            if isinstance(n, float):
+                rounded = round(n, 2)
+                # 去掉末尾的无用零和小数点
+                str_val = f"{rounded:.2f}".rstrip('0').rstrip('.')
+                # 如果原数值在最后一个有效位数之后还有更多小数，加上'..'
+                if len(f"{n:.15f}".split('.')[-1].rstrip('0')) > 2:
+                    return f"{str_val}.."
+                return str_val
+            return n
+
+        if isinstance(val, (list, tuple, np.ndarray)):
+            formatted_val = [format_float(n) for n in val]
+            # 将所有元素转换为字符串然后拼成一个字符串，并用 [] 包起来
+            val_str = "[" + ", ".join(map(str, formatted_val)) + "]"
+
+            return val_str
+
+        val_str = str(val)
+        if len(val_str) > max_length:
+            half_length = (max_length - 3) // 2
+            return val_str[:half_length] + '...' + val_str[-half_length:]
+        return val_str
+    df_shortened = df.apply(lambda col: col.map(lambda x: truncate_middle(x)))
+    print(tabulate(df_shortened, headers='keys', tablefmt="pretty")) #orgtbl #presto #pretty #github
 
 def deep_get_size(obj, seen=None):
     """
@@ -413,6 +467,11 @@ def deep_get_size(obj, seen=None):
     return size
 
 if __name__ == "__main__":
-    a=BruijnsSystem(sides=5, shifted_distance=10, max_num_of_line=450)
+    a=BruijnsSystem()
+    a.create_gird(max_num_of_line=500)
     pd_print(a.data_df)
     a.get_girds_interaction()
+    pd_print(a.inter_df)
+    a.create_gird(max_num_of_line=20)
+    a.get_girds_interaction(False)
+    pd_print(a.inter_df)
