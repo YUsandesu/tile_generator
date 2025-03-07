@@ -13,8 +13,8 @@ class BruijnsSystem:
         self.data_df = pd.DataFrame()
         self.create_gird(sides=sides, origin_norm=origin_norm, shifted_distance=shifted_distance, gap=gap, center=center,
                                                max_num_of_line=max_num_of_line)
-        # self.interaction_data_point_location: dict[tuple[float | int]:list[int]] = {}  # 按坐标点聚合的线段id信息
-        # self.interaction_data_line_id: dict[tuple[int]:list[float | int]] = {}  # 按线段id聚合的坐标点信息
+        self.interaction_data_point_location: dict[tuple[float | int]:list[int]] = {}  # 按坐标点聚合的线段id信息
+        self.interaction_data_line_id: dict[tuple[int]:list[float | int]] = {}  # 按线段id聚合的坐标点信息
         # self.get_girds_interaction()
         # print(f'共有:{len(self.interaction_data_point_location)}个点')
 
@@ -26,8 +26,9 @@ class BruijnsSystem:
         最后自动按照向量方向来排序(从反方向-->正方向排队)
         """
         self.tools.reset()
-
-        girds_list = [i['girds'] for i in self.girds_data]
+        tittles = self.data_df.columns
+        girds_t = tittles[tittles.get_loc(0):]
+        girds_dict = self.data_df.loc[:,girds_t].to_dict('index')
 
         # 清空已有
         if self.interaction_data_point_location:
@@ -35,10 +36,18 @@ class BruijnsSystem:
         if self.interaction_data_line_id:
             self.interaction_data_point_location = {}
 
-        for t_out, out_gird in enumerate(girds_list[:-1]):
-            for t_in, in_gird in enumerate(girds_list[t_out + 1:], start=t_out + 1):
+        # 将字典的键转换为有序列表，以便进行索引操作
+        keys = list(girds_dict.keys())
+
+        for t_out in keys[:-1]:
+            out_gird = girds_dict[t_out]
+
+            for t_in in keys[t_out + 1:]:
+                in_gird = girds_dict[t_in]
+
                 for number_out, line_detail_out in out_gird.items():
                     for number_in, line_detail_in in in_gird.items():
+
                         interaction_point = self.tools.intersection_2line(line_detail_out, line_detail_in)
                         if interaction_point is None:
                             continue
@@ -199,9 +208,6 @@ class BruijnsSystem:
             else:
                 tilling_dict_negative[tuple(vector)] = [tilling[t - 1], tilling[t]]
         return tilling_dict_positive, tilling_dict_negative
-
-    # def get_next_
-
     def splice_tilling(self, interaction_point_location, spliced_inter=()):
         """
 
@@ -276,7 +282,6 @@ class BruijnsSystem:
         # print(spliced_inter)
         # print(f'splice_tilling:{return_list}')
         return return_info, return_list
-
     def create_tilling(self, start_inter_point: tuple, num=10):
 
         now_tilling = []
@@ -415,14 +420,7 @@ def pd_print_all(df:pd.DataFrame):
         print(df)
 
 if __name__ == "__main__":
-    print(1)
-    a=BruijnsSystem(sides=5, shifted_distance=10, max_num_of_line=200)
-    print(2)
-    a.create_gird(sides=5, shifted_distance=10, max_num_of_line=100)
-    print(3)
-    a.create_gird(sides=5, shifted_distance=10, max_num_of_line=20)
-    print(4)
-    a.create_gird(sides=5, shifted_distance=10, max_num_of_line=1000)
-    print(5)
-    a.create_gird(sides=5, shifted_distance=10, max_num_of_line=20)
+    a=BruijnsSystem(sides=5, shifted_distance=10, max_num_of_line=45)
+    a.get_girds_interaction()
+
     pd_print_all(a.data_df)
