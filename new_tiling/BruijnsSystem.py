@@ -406,10 +406,10 @@ class BruijnsSystem:
         # =============================== main ===============================
         return is_main_changed
 
-    def get_gird_lines_dict(self):
+    def get_gird_lines_list(self):
         tittle = self.data_df.columns
         now_num_list = tittle[tittle.get_loc(0):]
-        return self.data_df.loc[:, now_num_list].T.to_dict()
+        return self.data_df.loc[:, now_num_list].values.tolist()
 
 
 
