@@ -1,16 +1,18 @@
 import sys
 import time
-
 from new_tiling.PY5_2DToolkit import Tools2D
 import numpy as np
 import pandas as pd
 import warnings
 from itertools import islice
+from tabulate import tabulate
+import humanize
 
 class BruijnsSystem:
     def __init__(self, sides=5, origin_norm=80, shifted_distance=0, gap=100, center=(100, 100), max_num_of_line=50):
         self.tools = Tools2D()
         self.data_df = pd.DataFrame()
+        self.data_inter_df = pd.DataFrame()
         self.create_gird(sides=sides, origin_norm=origin_norm, shifted_distance=shifted_distance, gap=gap, center=center,
                                                max_num_of_line=max_num_of_line)
         self.interaction_data_point_location: dict[tuple[float | int]:list[int]] = {}  # 按坐标点聚合的线段id信息
@@ -21,66 +23,38 @@ class BruijnsSystem:
     def get_girds_interaction(self):
         """
         查找两个line字典之间的所有焦点
-        输入值:((vector):{0:line_dict,1:xx,-1:xx},():{0:xx,1:xx,-1:xx})
-        输出值:{ (p_x,p_y):[{v:v,n:n},{v_info}],[_x,_y]:[...],.. }
-        最后自动按照向量方向来排序(从反方向-->正方向排队)
         """
-        self.tools.reset()
         tittles = self.data_df.columns
-        girds_t = tittles[tittles.get_loc(0):]
+        girds_t = tittles[tittles.get_loc(0):] #内部line的id列表
         girds_dict = self.data_df.loc[:,girds_t].to_dict('index')
+        girds_index = list(girds_dict.keys()) #index列表
+        new_columns =[(index,num)for index in girds_index for num in girds_t]#列表表达式嵌套循环从右向左优先级
 
-        # 清空已有
-        if self.interaction_data_point_location:
-            self.interaction_data_point_location = {}
-        if self.interaction_data_line_id:
-            self.interaction_data_point_location = {}
-
-        # 将字典的键转换为有序列表，以便进行索引操作
-        keys = list(girds_dict.keys())
-
-        for t_out in keys[:-1]:
+        # 创建一个字典用于批量构建 DataFrame
+        inter_dict = {}
+        for t_out in girds_index[:-1]:
             out_gird = girds_dict[t_out]
-
-            for t_in in keys[t_out + 1:]:
+            for t_in in girds_index[girds_index.index(t_out) + 1:]:
                 in_gird = girds_dict[t_in]
-
+                # girds 中遍历每一条线
                 for number_out, line_detail_out in out_gird.items():
                     for number_in, line_detail_in in in_gird.items():
-
                         interaction_point = self.tools.intersection_2line(line_detail_out, line_detail_in)
-                        if interaction_point is None:
-                            continue
+                        if interaction_point is not None:
+                            if (t_out, number_out) not in inter_dict:
+                                inter_dict[(t_out, number_out)] = {}
+                            if (t_in, number_in) not in inter_dict:
+                                inter_dict[(t_in, number_in)] = {}
 
-                        # 新数据结构处理 (使用元组作为复合键)
-                        # 处理外层线段 (t_out, number_out)
-                        key_out = (t_out, number_out)
-                        if key_out not in self.interaction_data_line_id:
-                            self.interaction_data_line_id[key_out] = []
-                        self.interaction_data_line_id[key_out].append(interaction_point)
-
-                        # 处理内层线段 (t_in, number_in)
-                        key_in = (t_in, number_in)
-                        if key_in not in self.interaction_data_line_id:
-                            self.interaction_data_line_id[key_in] = []
-                        self.interaction_data_line_id[key_in].append(interaction_point)
-
-                        # 保留原坐标点维度聚合逻辑
-                        point_key = tuple(interaction_point)
-                        if point_key not in self.interaction_data_point_location:
-                            self.interaction_data_point_location[point_key] = []
-                        self.interaction_data_point_location[point_key].extend([
-                            (t_out, number_out),
-                            (t_in, number_in)
-                        ])
-
-        self._sort_girds_interaction()
-        # interaction_data_point_location 结构示例
-        # {
-        #     (0, 0): [[x1, y1], [x2, y2], ...],  # gird_data[0]中girds键下0号线段的所有交点
-        #     (1, -1): [[x3, y3]],  # gird_data[1]中girds键下-1号线段的交点
-        #     (2, 1): [...]  # gird_data[2]中girds键下1号线段的交点
-        # }
+                            # 将交互点加入到 inter_dict 对应的位置
+                            inter_dict[(t_out, number_out)][(t_in, number_in)] = interaction_point
+                            inter_dict[(t_in, number_in)][(t_out, number_out)] = interaction_point  # 对称点
+        print(f'查找完毕{humanize.naturalsize(deep_get_size(inter_dict))}')
+        # 将嵌套字典转换为 DataFrame
+        inter_df = pd.DataFrame(inter_dict)
+        print(f'格式转换完毕{humanize.naturalsize(inter_df.memory_usage(deep=True).sum())}')
+        pd_print(inter_df)
+        print('(2,0)and(1,1):',inter_df.loc[(2,0),(1,1)])
 
     def _sort_girds_interaction(self):
         # 指向1象限是x自小到大排列(+,+)=+,指向2象限是x自大到小排列(-,+)=-
@@ -208,6 +182,7 @@ class BruijnsSystem:
             else:
                 tilling_dict_negative[tuple(vector)] = [tilling[t - 1], tilling[t]]
         return tilling_dict_positive, tilling_dict_negative
+
     def splice_tilling(self, interaction_point_location, spliced_inter=()):
         """
 
@@ -313,6 +288,8 @@ class BruijnsSystem:
                 break
         return now_tilling
 
+
+
     @staticmethod
     def create_origin_vector_numpy(sides, radius=10):
         """
@@ -328,6 +305,7 @@ class BruijnsSystem:
         back_nparray = np.column_stack([x, y])
         # all the input arrays must have same number of dimensions维度
         return back_nparray
+
     def create_gird(self, sides=5, origin_norm=80, shifted_distance=0, gap:int|list|tuple=100, center=(100, 100), max_num_of_line=50):
         """
         此函数用于创建一个指定参数的网格系统。
@@ -336,10 +314,11 @@ class BruijnsSystem:
         - sides: 网格的边数 (默认值为 5)。
         - origin_norm: 初始向量的模 (长度) (默认值为 80)。
         - shifted_distance: 向量 初始的平移距离 (默认值为 0)。
-        - gap: 每条平行网格线之间的距离。可以是整数、列表或元组 (默认值为 100)。
+        - gap: gird内部的间距。可以是list,tuple指定每个girds的间距,int默认间距相等
         - center: 网格中心的坐标 (默认值为 (100, 100))。
         - max_num_of_line: 网格中的最大线条数 (默认值为 50)。
-
+        返回bool:
+           是否发生了项目改变,如果改变,需要重新完整的计算interaction
         """
 
         if not isinstance(gap,(list,tuple)):
@@ -370,9 +349,9 @@ class BruijnsSystem:
         key_is_in = all(a_key in tittle for a_key in ['gap',0])
         end_num = (max_num_of_line - sides) // (2 * sides) + 1
         if key_is_in and origin_directed_lines_list == self.data_df.loc[:,0].tolist() and gap == self.data_df['gap'].tolist():
+            is_main_changed = False
             if  vectors_origin != self.data_df['origin_vector'].tolist() :
                 self.data_df['origin_vector'] = vectors_origin #norm发生变化,会导致这种情况
-
             now_num_list = tittle[tittle.get_loc(0):]
             now_num = max(now_num_list)
             if now_num >= end_num:
@@ -384,6 +363,7 @@ class BruijnsSystem:
                 start_num = now_num + 1
                 print(f'当前已创建:{now_num_list} start_num:{start_num}')
         else:
+            is_main_changed = True
             self.data_df = pd.DataFrame()
             self.data_df['origin_vector'] = vectors_origin
             self.data_df['gap'] = gap
@@ -393,12 +373,8 @@ class BruijnsSystem:
         #生成一个shift倍数的列表,准备遍历
         list_positive = np.arange(start_num, end_num)
         target_list = list_positive.tolist()+(-list_positive).tolist()
-
-        # 提前指定列名.每次添加列,df会重新在内存构成一次,所以用concat.
-        additional_data = {i: [pd.NA] * len(origin_directed_lines_list) for i in target_list}
-        temp_df = pd.DataFrame(additional_data)
-        self.data_df = pd.concat([self.data_df, temp_df], axis=1)
-
+        self.data_df = self.data_df.reindex(columns=list(self.data_df.columns)+target_list, fill_value={})
+        #=============================== main ===============================
         # 平移gird_0，构建平行网格gird
         for index, line_dict in self.data_df.loc[:, 0].to_dict().items():  # 遍历原始gird每一条线
             for i in target_list:
@@ -406,21 +382,35 @@ class BruijnsSystem:
                 shift_distance = gap[index] * i
                 shift_vector = self.tools.vector_change_norm(o_v, shift_distance)
                 line_detail = self.tools.line_shift(line_dict, shift_vector, rewrite=False, drop=False)
-                #这里用loc会报错,不太明白为什么
                 self.data_df.at[index,i] = line_detail  # 命名方式1,2,3...
+        # =============================== main ===============================
+        return is_main_changed
 
-
-
-def pd_print_all(df:pd.DataFrame):
+def pd_print(df:pd.DataFrame):
     """
        打印整个DataFrame，不论其大小。
     """
-    with pd.option_context('display.max_rows', None,
-                           'display.max_columns', None):
-        print(df)
+    print(tabulate(df, headers='keys', tablefmt='psql'))
+
+def deep_get_size(obj, seen=None):
+    """
+    递归计算对象的深层内存大小 (单位: 字节)
+    """
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    seen.add(obj_id)
+    size = sys.getsizeof(obj)
+    if isinstance(obj, dict):
+        size += sum([deep_get_size(v, seen) + deep_get_size(k, seen) for k, v in obj.items()])
+    elif isinstance(obj, (list, tuple, set, frozenset)):
+        size += sum([deep_get_size(item, seen) for item in obj])
+    # 可以根据需要添加其他容器类型的处理，例如自定义对象
+    return size
 
 if __name__ == "__main__":
-    a=BruijnsSystem(sides=5, shifted_distance=10, max_num_of_line=45)
+    a=BruijnsSystem(sides=5, shifted_distance=10, max_num_of_line=450)
+    pd_print(a.data_df)
     a.get_girds_interaction()
-
-    pd_print_all(a.data_df)
