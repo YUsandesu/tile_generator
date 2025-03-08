@@ -13,6 +13,7 @@ class BruijnsSystem:
         self.tools = Tools2D()
         self.data_df = pd.DataFrame()
         self.inter_df = pd.DataFrame()
+        self.tilling_pd = pd.DataFrame
 
     def get_girds_interaction(self,rebuild=True):
         """
@@ -130,9 +131,20 @@ class BruijnsSystem:
 
         print(f'\n===倒字典排序===\nself.interaction_data_line_id:{dict(islice(reverse_data.items(), 1))}...')
 
+    def tilling_pd(self):
+        the_origin_vectors = self.data_df['origin_vector'].tolist()
+        sides = len(the_origin_vectors)
+        if sides % 2 != 0:
+            all_step = sides * 2
+            mirror_step = sides
+        else:
+            all_step = sides
+            mirror_step = sides / 2
+        self.tilling_pd['positive'] = the_origin_vectors
+        # mirror_list =
 
-    @staticmethod
-    def get_tilling_information(gird_origin_vectors, vectors):
+
+    def get_tilling_information(self,vectors_id):
         """
         获得单个Tilling的形状
         返回一个顺时针的Tilling的边的集合,根据顺序可以拼接出闭合的多边形
@@ -140,67 +152,62 @@ class BruijnsSystem:
         vector_list是当前交点的vectors信息
         返回一个列表,是拼接的顺序,可以按照这个顺序拼接出闭合多边形
         """
-        # 例:1,2,3,4,5
-        # 360/10=36-->180/36=5
-        # 180/360/10-->5
-        # 1,-4, 2,-5, 3,-1, 4,-2, 5,-3
 
-        # 360/6=60-->180/60=3
-        # 180/360/side*2=3
-        #   ||
-        # 间隔数目=sides
-        #
-        # 转换为:list[0]:1 list[2]:2 list[4]=3 list[6]=4 list[8]=5
-        # list[(0+5)%10=5]=-1 list[(2+5)%10=7]=-2 list[(4+5)%10=9]=-3
-        # list[(6+5)%10=1]=-4  list[(8+5)%10=3]=-5
-
-        # gird_origin_vectors 必须是顺时针排列
-
+        # # gird_origin_vectors 必须是顺时针排列
         # def _sort_clockwise(the_vectors):
         #     """使用向量叉积进行顺时针排序"""
         #     center = np.mean(the_vectors, axis=0)
         #     return sorted(the_vectors, key=lambda v: np.arctan2(v[1] - center[1], v[0] - center[0]))
-
-        # 转换成元组方便使用集合方法
-        the_origin_vectors = [tuple(vector) for vector in gird_origin_vectors]
-        vectors_set = {tuple(vector) for vector in vectors}
+        the_origin_vectors = self.data_df['origin_vector'].to_dict()
+        target_vectors = [the_origin_vectors[i] for i in vectors_id]
         sides = len(the_origin_vectors)
+
+        walking:dict={}
+        walking_mirror:dict={}
         if sides % 2 != 0:  # 奇数
-            temp_list: list[tuple | list] = [[None]] * sides * 2
-
-            for i, the_vector in enumerate(the_origin_vectors):
-                if the_vector in vectors_set:
-                    temp_list[2 * i] = the_vector
-                    temp_list[(2 * i + sides) % (sides * 2)] = (-the_vector[0], -the_vector[1])
-            tilling_vectors = [a_vector for a_vector in temp_list if a_vector[0] is not None]
-
-        else:  # 偶数
-            back_list_positive = [the_vector for the_vector in the_origin_vectors if the_vector in vectors_set]
-            back_list_negative = [(-the_vector[0], -the_vector[1])
-                                  for the_vector in the_origin_vectors if the_vector in vectors_set]
-            # 考虑十字情况,有时正向量和反向量重复,合并的时候需要判断是否重复
-            tilling_vectors = back_list_positive + [negative_v for negative_v in back_list_negative
-                                                    if negative_v not in back_list_positive]
+            for index, the_vector in the_origin_vectors.items():
+                if index in vectors_id:
+                    # 例子：sides = 5
+                    # 圆被分成5个等分，并且存在另外5个镜像等分，总共10个分区
+                    # 这种排列是由于180°旋转对称导致的
+                    # 计算：360度/10 = 36度 -> 180度/36度 = 5
+                    # 索引镜像：列表长度10 原索引 i 镜像到 (i + 镜像间隔:sides) % 总等分数:sides * 2
+                    # 例如: 0, 2, 4, 6, 8 分别镜像到: 5, 7, 9, 1, 3
+                    # 值: 1, 2, 3, 4, 5 分别变为: -1, -2, -3, -4, -5
+                    walking[2 * index] = the_vector
+                    walking_mirror [(2 * index + sides) % (sides * 2)]=[-the_vector[0], -the_vector[1]]
+        else:
+            # 偶数
+            walking = {index: the_vector for index, the_vector in the_origin_vectors.items() if index in vectors_id}
+            # 对于偶数边形，正对的向量可能是冗余的
+            # 例如 sides = 6 时，向量 0 和 3, 1 和 4, 2 和 5 互为正对
+            # 为了避免在初始状态 (shift_distance = 0) 下，walking 和 walking_mirror 选取到重复的向量
+            # walking_mirror 的选取需要排除 walking 中已有的向量，并选择 "对位" 的向量
+            # "对位" 的向量通过 (i + 镜像间隔:sides/2) % 总等分数:sides 计算得到，它指向与 index 索引向量正对的位置
+            walking_mirror = {index:the_vector
+                              for index, the_vector in the_origin_vectors.items()
+                              if (index+sides/2)%sides in vectors_id
+                              and index not in walking.keys()}
+        temp_dict = walking | walking_mirror
+        walking_dict = {key:temp_dict[key] for key in sorted(list(temp_dict.keys()))}
 
         # tilling_vectors只是移动的路径,需要绘制成坐标点
-        tilling_vectors_np = np.array(tilling_vectors)
+        tilling_vectors_np = np.array(list((walking | walking_mirror).values()))
         cumulative_sum = np.cumsum(tilling_vectors_np, axis=0)
-        tilling = cumulative_sum.tolist()
-
-        # 防止出现无穷小数
-        tilling = [[Tools2D.reduce_errors(vector[0]), Tools2D.reduce_errors(vector[1])] for vector in tilling]
+        tilling = Tools2D.reduce_errors_np(cumulative_sum,max_value=False).tolist()# 防止出现无穷小数
 
         # 此处一并返回原vector,方便拼接.
-        # vector_o[0]是 tilling[-1]和[0] (开头和末尾)
-        # vector_o[1]是[0]和[1] (第一个和第二个)-->以此类推
+        # vector_o[0]--> tilling[-1]和[0] (末尾-->开头)
+        # vector_o[1]--> [0]和[1] (第一个-->第二个)
+        # 以此类推
         tilling_dict_positive = {}
         tilling_dict_negative = {}
-        # {(tuple(vectors[0])): [tilling[-1], tilling[0]]}
-        for t, vector in enumerate(tilling_vectors, start=0):
-            if tuple(vector) in vectors_set:
-                tilling_dict_positive[tuple(vector)] = [tilling[t - 1], tilling[t]]
+        for t,(the_id, vector) in enumerate(walking_dict.items()):
+            if the_id in walking.keys():
+                tilling_dict_positive[the_id] = [tilling[t - 1], tilling[t]]
             else:
-                tilling_dict_negative[tuple(vector)] = [tilling[t - 1], tilling[t]]
+                tilling_dict_negative[the_id] = [tilling[t - 1], tilling[t]]
+
         return tilling_dict_positive, tilling_dict_negative
 
     def splice_tilling(self, interaction_point_location, spliced_inter=()):
@@ -277,6 +284,7 @@ class BruijnsSystem:
         # print(spliced_inter)
         # print(f'splice_tilling:{return_list}')
         return return_info, return_list
+
     def create_tilling(self, start_inter_point: tuple, num=10):
 
         now_tilling = []
@@ -308,8 +316,6 @@ class BruijnsSystem:
                 break
         return now_tilling
 
-
-
     @staticmethod
     def create_origin_vector_numpy(sides, radius=10):
         """
@@ -324,7 +330,7 @@ class BruijnsSystem:
         y = np.sin(angles_group) * radius
         back_nparray = np.column_stack([x, y])
         # all the input arrays must have same number of dimensions维度
-        return back_nparray
+        return Tools2D.reduce_errors_np(back_nparray)
 
     def create_gird(self, sides=5, origin_norm=80, shifted_distance=0, gap:int|list|tuple=100, center=(100, 100), max_num_of_line=50):
         """
@@ -411,8 +417,6 @@ class BruijnsSystem:
         now_num_list = tittle[tittle.get_loc(0):]
         return self.data_df.loc[:, now_num_list].values.tolist()
 
-
-
 def pd_print(df: pd.DataFrame, max_length=20):
     """
     打印整个DataFrame，不论其大小，长值会被从中间缩略显示。
@@ -422,24 +426,23 @@ def pd_print(df: pd.DataFrame, max_length=20):
     """
 
     def truncate_middle(val):
-        def format_float(n):
-            if isinstance(n, float):
-                rounded = round(n, 2)
-                # 去掉末尾的无用零和小数点
-                str_val = f"{rounded:.2f}".rstrip('0').rstrip('.')
-                # 如果原数值在最后一个有效位数之后还有更多小数，加上'..'
-                if len(f"{n:.15f}".split('.')[-1].rstrip('0')) > 2:
-                    return f"{str_val}.."
-                return str_val
-            return n
-
-        if isinstance(val, (list, tuple, np.ndarray)):
-            formatted_val = [format_float(n) for n in val]
-            # 将所有元素转换为字符串然后拼成一个字符串，并用 [] 包起来
-            val_str = "[" + ", ".join(map(str, formatted_val)) + "]"
-
-            return val_str
-
+        # def format_float(n):
+        #     if isinstance(n, float):
+        #         rounded = round(n, 2)
+        #         # 去掉末尾的无用零和小数点
+        #         str_val = f"{rounded:.2f}".rstrip('0').rstrip('.')
+        #         # 如果原数值在最后一个有效位数之后还有更多小数，加上'..'
+        #         if len(f"{n:.15f}".split('.')[-1].rstrip('0')) > 2:
+        #             return f"{str_val}.."
+        #         return str_val
+        #     return n
+        #
+        # if isinstance(val, (list, tuple, np.ndarray)):
+        #     formatted_val = [format_float(n) for n in val]
+        #     # 将所有元素转换为字符串然后拼成一个字符串，并用 [] 包起来
+        #     val_str = "[" + ", ".join(map(str, formatted_val)) + "]"
+        #
+        #     return val_str
         val_str = str(val)
         if len(val_str) > max_length:
             half_length = (max_length - 3) // 2
@@ -468,10 +471,10 @@ def deep_get_size(obj, seen=None):
 
 if __name__ == "__main__":
     a=BruijnsSystem()
-    a.create_gird(max_num_of_line=500)
-    pd_print(a.data_df)
+    a.create_gird(sides=5,max_num_of_line=20,shifted_distance=0)
+    pd_print(a.data_df,100)
     a.get_girds_interaction()
     pd_print(a.inter_df)
-    a.create_gird(max_num_of_line=20)
-    a.get_girds_interaction(False)
-    pd_print(a.inter_df)
+    example_point = a.inter_df.loc[(0,1),(1,1)]
+    print(a.get_tilling_information([0,1,4]))
+    print(example_point)
