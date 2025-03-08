@@ -18,12 +18,17 @@ def slider(title, location=(50,150), value=50, range_val=(0,50), size=(200,20)):
     global slider_dic
     value = math.floor(value)
     cp5.addSlider(title) \
+        .setPosition(location[0], location[1]) \
+        .setSize(size[0], size[1]) \
+        .setRange(range_val[0], range_val[1]) \
+        .setNumberOfTickMarks(range_val[1]-range_val[0]+1) \
+        .setValue(math.floor(value)) \
         .setPosition(*location) \
         .setSize(*size) \
         .setRange(*range_val) \
         .setValue(value)
     slider_dic[title] = value
-    
+
 def slider_value():
     """
     如果发生改变slider_value字典

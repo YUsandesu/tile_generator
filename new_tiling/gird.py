@@ -1,7 +1,8 @@
 from the_control import *
-from YuSan_PY5_Toolscode import *
-from tilling import BruijnsTilling
+from PY5_2DToolkit import *
+from BruijnsSystem import BruijnsSystem
 
+#max_num_of_line超过400条容易卡死
 def setup():
     global gird_data
     py5.size(800, 600)
@@ -10,8 +11,8 @@ def setup():
     slider('sides', (50,py5.height-120), value=5, range_val=(3,15))
     slider('distance', location=(50,py5.height-90), value=15, range_val=(0,500))
     slider('zoom', location=(50,py5.height-60), value=150, range_val=(0,500))
-    slider('num', location=(50,py5.height-30), size=(500,20), value=3, range_val=(0,500))
-    gird_data = BruijnsTilling.create_gird(5, 15, gap=150, num_of_line=3, center=screen_axis(0, 0))
+    slider('num', location=(50,py5.height-30), size=(500,20), value=30, range_val=(0,2000))
+    bs.create_gird(5, gap=150, max_num_of_line=30, center=sd.screen_axis(0, 0))
     #print(f"初次生成the_gird:{the_gird}")
     # print("Here")
     # print(gird_data)
@@ -22,26 +23,26 @@ def draw():
 
     back = slider_value()
     if back:
-        gird_data = BruijnsTilling.create_gird(
+        bs.create_gird(
             sides=back['sides'],
             shifted_distance=back['distance'],
             gap=back['zoom'],
-            center=screen_axis(0,0),
-            num_of_line=back['num']
+            center=sd.screen_axis(0, 0),
+            max_num_of_line=back['num']
         )
 
     py5.background(255)
 
-    the_lines_dict_list = [each_info['girds'] for each_info in gird_data] #取出每组gird
-    the_origin_gird = [each_info['origin_directed_line'] for each_info in gird_data]
-    the_vector = [each_info['origin_vector'] for each_info in gird_data]
+    the_lines_dict_list = bs.get_gird_lines_list() #取出每组gird
+    the_origin_gird = bs.data_df.loc[:,0].tolist()
+    the_vector = bs.data_df.loc[:,'origin_vector'].tolist()
 
-    screen_draw_vector(the_vector,screen_axis(-150,150))#画出原始向量
+    sd.screen_draw_vector(the_vector,sd.screen_axis(-150,150))#画出原始向量
 
     for times,line_dict in enumerate(the_lines_dict_list):
-        screen_draw_directed_line(line_dict,stroke_weight=3,color=color[times%len(color)])
+        sd.screen_draw_directed_line(line_dict,stroke_weight=3,color=color[times%len(color)])
 
-    screen_draw_directed_line(the_origin_gird,stroke_weight=5,color=py5.color(0,0,0,125))
+    sd.screen_draw_directed_line(the_origin_gird,stroke_weight=5,color=py5.color(0,0,0,125))
 
     # inter_info=tilling.get_girds_interaction(gird_data)
     # points_list=list(inter_info.keys())
@@ -49,10 +50,11 @@ def draw():
     # tem=Tools2D()
     # tem.point_drop_group(points_list)
     # screen_draw_points(tem.get_point_dic())
-    screen_print_fps()
+    sd.screen_print_fps()
 
 
 if __name__ == "__main__":
+    sd=Screen_draw(py5)
     color = [
         py5.color(255, 0, 0),
         py5.color(0, 255, 0),
@@ -70,7 +72,7 @@ if __name__ == "__main__":
         py5.color(255, 0, 125),
         py5.color(255, 125, 0),
     ]  # 颜色常量
-
+    bs = BruijnsSystem()
     # gird_data:list
     py5.run_sketch()
 
