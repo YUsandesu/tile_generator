@@ -1,5 +1,8 @@
 import sys
 import time
+
+from xarray.util.generate_ops import inplace
+
 from new_tiling.PY5_2DToolkit import Tools2D
 import numpy as np
 import pandas as pd
@@ -7,6 +10,9 @@ import warnings
 from itertools import islice
 from tabulate import tabulate
 import humanize
+
+from new_tiling.the_control import slider
+
 
 class BruijnsSystem:
     def __init__(self, sides=5, origin_norm=80, shifted_distance=0, gap=100, center=(100, 100), max_num_of_line=50):
@@ -131,20 +137,60 @@ class BruijnsSystem:
 
         print(f'\n===倒字典排序===\nself.interaction_data_line_id:{dict(islice(reverse_data.items(), 1))}...')
 
-    def tilling_pd(self):
-        the_origin_vectors = self.data_df['origin_vector'].tolist()
+    def vector_mapping_pd(self):
+        vectors_id = self.data_df.index.tolist()
+        the_origin_vectors = self.data_df['origin_vector'].to_dict()
+        target_vectors = [the_origin_vectors[i] for i in vectors_id]
         sides = len(the_origin_vectors)
-        if sides % 2 != 0:
-            all_step = sides * 2
-            mirror_step = sides
+
+        walking: dict = {}
+        walking_mirror: dict = {}
+        if sides % 2 != 0:  # 奇数
+            for index, the_vector in the_origin_vectors.items():
+                if index in vectors_id:
+                    # 例子：sides = 5
+                    # 圆被分成5个等分，并且存在另外5个镜像等分，总共10个分区
+                    # 这种排列是由于180°旋转对称导致的
+                    # 计算：360度/10 = 36度 -> 180度/36度 = 5
+                    # 索引镜像：列表长度10 原索引 i 镜像到 (i + 镜像间隔:sides) % 总等分数:sides * 2
+                    # 例如: 0, 2, 4, 6, 8 分别镜像到: 5, 7, 9, 1, 3
+                    # 值: 1, 2, 3, 4, 5 分别变为: -1, -2, -3, -4, -5
+                    walking[2 * index] = the_vector
+                    walking_mirror[(2 * index + sides) % (sides * 2)] = [-the_vector[0], -the_vector[1]]
         else:
-            all_step = sides
-            mirror_step = sides / 2
-        self.tilling_pd['positive'] = the_origin_vectors
-        # mirror_list =
+            # 偶数
+            walking = {index: the_vector for index, the_vector in the_origin_vectors.items() if index in vectors_id}
+            # 对于偶数边形，正对的向量可能是冗余的
+            # 例如 sides = 6 时，向量 0 和 3, 1 和 4, 2 和 5 互为正对
+            # 为了避免在初始状态 (shift_distance = 0) 下，walking 和 walking_mirror 选取到重复的向量
+            # walking_mirror 的选取需要排除 walking 中已有的向量，并选择 "对位" 的向量
+            # "对位" 的向量通过 (i + 镜像间隔:sides/2) % 总等分数:sides 计算得到，它指向与 index 索引向量正对的位置
+            walking_mirror = {index: the_vector
+                              for index, the_vector in the_origin_vectors.items()
+                              if (index + sides / 2) % sides in vectors_id
+                              and index not in walking.keys()}
+        temp_dict = walking | walking_mirror
 
+        # Create DataFrame using single column with list as its elements
+        self.tilling_pd = pd.DataFrame(list(temp_dict.items()), columns=['index', 'vector'])
 
-    def get_tilling_information(self,vectors_id):
+        # 经过对称已经是偶数了,具有镜面对称
+        num_list = list(temp_dict.keys())
+        mirror_num_list = num_list[len(num_list) // 2:] + num_list[:len(num_list) // 2]
+        self.tilling_pd['mirror_index'] = mirror_num_list
+
+        self.tilling_pd.set_index(['index','mirror_index'], inplace=True)
+        self.tilling_pd.sort_index(level='index',inplace=True)
+        pd_print(self.tilling_pd,muti_index=True)
+
+        #调用示例,查找6的mirror_index
+        print(self.tilling_pd.loc[6].index.get_level_values('mirror_index')[0])
+        #查找mirror_index=5 的 index
+        print(self.tilling_pd.xs(5, level='mirror_index').index.get_level_values('index')[0])
+        # print(self.tilling_pd.loc[3,'vector'])
+        # print(self.tilling_pd[self.tilling_pd['mirror_index'] == 8]['vector'].iloc[0])#因为只有唯一值,使用.iloc[0]
+
+    def get_tilling_shape(self, vectors_id):
         """
         获得单个Tilling的形状
         返回一个顺时针的Tilling的边的集合,根据顺序可以拼接出闭合的多边形
@@ -164,6 +210,7 @@ class BruijnsSystem:
 
         walking:dict={}
         walking_mirror:dict={}
+        #TODO 此处应该根据mapping优化 不用重复生成
         if sides % 2 != 0:  # 奇数
             for index, the_vector in the_origin_vectors.items():
                 if index in vectors_id:
@@ -227,7 +274,7 @@ class BruijnsSystem:
         inter_lines_index_num: list[int, int] = data_point[interaction_point_location]
         now_vector: list[tuple[int | float]] = [tuple(o_vector[i]) for i, _ in inter_lines_index_num]
         # 获取自己的tilling形状
-        o_positive_sides, o_negative_sides = self.get_tilling_information(o_vector, now_vector)
+        o_positive_sides, o_negative_sides = self.get_tilling_shape(o_vector, now_vector)
         origin_tilling: dict[tuple:list[list]] = o_positive_sides | o_negative_sides
         return_list = list(origin_tilling.values())
         # 查询正方向的点和负方向的点
@@ -251,7 +298,7 @@ class BruijnsSystem:
         return_info: list[dict] = []
         for next_point, is_positive in next_points_list:
             next_vectors = [tuple(o_vector[index]) for index, _ in data_point[tuple(next_point)]]
-            next_positive_sides, next_negative_sides = self.get_tilling_information(o_vector, next_vectors)
+            next_positive_sides, next_negative_sides = self.get_tilling_shape(o_vector, next_vectors)
             next_sides = next_positive_sides | next_negative_sides
 
             target_side = set(now_vector) & set(next_vectors)
@@ -417,7 +464,7 @@ class BruijnsSystem:
         now_num_list = tittle[tittle.get_loc(0):]
         return self.data_df.loc[:, now_num_list].values.tolist()
 
-def pd_print(df: pd.DataFrame, max_length=20):
+def pd_print(df: pd.DataFrame, max_length=20,muti_index=False):
     """
     打印整个DataFrame，不论其大小，长值会被从中间缩略显示。
 
@@ -449,7 +496,11 @@ def pd_print(df: pd.DataFrame, max_length=20):
             return val_str[:half_length] + '...' + val_str[-half_length:]
         return val_str
     df_shortened = df.apply(lambda col: col.map(lambda x: truncate_middle(x)))
-    print(tabulate(df_shortened, headers='keys', tablefmt="pretty")) #orgtbl #presto #pretty #github
+    if muti_index:
+        df_shortened.reset_index(inplace=True)
+        print(tabulate(df_shortened, headers='keys', tablefmt="pretty", showindex=False))
+    else:
+        print(tabulate(df_shortened, headers='keys', tablefmt="pretty")) #orgtbl #presto #pretty #github
 
 def deep_get_size(obj, seen=None):
     """
@@ -472,9 +523,10 @@ def deep_get_size(obj, seen=None):
 if __name__ == "__main__":
     a=BruijnsSystem()
     a.create_gird(sides=5,max_num_of_line=20,shifted_distance=0)
-    pd_print(a.data_df,100)
+    a.vector_mapping_pd()
+    # pd_print(a.data_df,100)
     a.get_girds_interaction()
     pd_print(a.inter_df)
-    example_point = a.inter_df.loc[(0,1),(1,1)]
-    print(a.get_tilling_information([0,1,4]))
-    print(example_point)
+    # example_point = a.inter_df.loc[(0,1),(1,1)]
+    # print(a.get_tilling_information([0,1,4]))
+    # print(example_point)
