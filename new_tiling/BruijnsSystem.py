@@ -1,12 +1,13 @@
 import sys
 import time
-from new_tiling.PY5_2DToolkit import Tools2D
+from PY5_2DToolkit import Tools2D
+# from new_tiling.PY5_2DToolkit import Tools2D
 import numpy as np
 import pandas as pd
 import warnings
 from itertools import islice
-from tabulate import tabulate
-import humanize
+# from tabulate import tabulate
+# import humanize
 
 class BruijnsSystem:
     def __init__(self, sides=5, origin_norm=80, shifted_distance=0, gap=100, center=(100, 100), max_num_of_line=50):
@@ -289,7 +290,7 @@ class BruijnsSystem:
                 warnings.warn('缺少返回值')
                 continue
             used_points.append(this_dict['spliced_inter'])
-            print(f'刚刚进行了splice_tilling:{this_dict['spliced_inter']},获得信息{return_info}')
+            # print(f'刚刚进行了splice_tilling:{this_dict['spliced_inter']},获得信息{return_info}')
             return_tilling_shifted = [Tools2D.point_shift(i, this_dict['last_shifted']) for i in return_tilling]
             now_tilling = now_tilling + return_tilling_shifted
 
@@ -341,23 +342,22 @@ class BruijnsSystem:
            是否发生了项目改变,如果改变,需要重新完整的计算interaction
         """
 
-        if not isinstance(gap,(list,tuple)):
-            gap=[gap]*sides
-        elif len(gap)!=sides:
+        if not isinstance(gap, (list, tuple)):
+            gap = [gap] * sides
+        elif len(gap) != sides:
             raise ValueError(f"gap输入错误:{gap}")
 
         # 创建一组origin_vectors
-        vectors_origin = BruijnsSystem.create_origin_vector_numpy(sides, origin_norm)
+        vectors_origin = self.create_origin_vector_numpy(sides, origin_norm)
         # 取vector的垂直向量vector_pen
-        vectors_origin_pen = Tools2D.vector_group_rotate_np(vectors_origin, 90).tolist()
+        vectors_origin_pen = self.tools.vector_group_rotate_np(vectors_origin, 90).tolist()
         vectors_origin = vectors_origin.tolist()
 
         # 定义有向直线origin_directed_line:0
         self.tools.reset()
         for d_v in vectors_origin_pen:
             self.tools.directed_line_drop(location_point=center, direction_vector=d_v)
-        line_key_list = list(self.tools.line_dic.keys())
-        for index, line_id in enumerate(line_key_list):  # 根据distance平移
+        for index, line_id in enumerate(self.tools.line_dic.keys()):  # 根据distance平移
             # TODO 此处模长可以不用以相同数值平移,可以存在长度差,应该再增加一个参数调整长度差
             distance_shift_vector = self.tools.vector_change_norm(vectors_origin[index],
                                                                   shifted_distance)
@@ -384,16 +384,19 @@ class BruijnsSystem:
                 print(f'当前已创建:{now_num_list} start_num:{start_num}')
         else:
             is_main_changed = True
-            self.data_df = pd.DataFrame()
-            self.data_df['origin_vector'] = vectors_origin
-            self.data_df['gap'] = gap
+            self.data_df = pd.DataFrame({
+                'origin_vector': vectors_origin,
+                'gap': gap
+            })
             self.data_df.loc[:, 0] = origin_directed_lines_list  # 创建origin_d_line
             start_num = 1
 
         #生成一个shift倍数的列表,准备遍历
         list_positive = np.arange(start_num, end_num)
-        target_list = list_positive.tolist()+(-list_positive).tolist()
-        self.data_df = self.data_df.reindex(columns=list(self.data_df.columns)+target_list, fill_value={})
+        target_list = list_positive.tolist() + (-list_positive).tolist()
+        print(self.data_df.head())
+        self.data_df = self.data_df.reindex(columns=list(self.data_df.columns) + target_list, fill_value={})
+        print(self.data_df.head())
         #=============================== main ===============================
         # 平移gird_0，构建平行网格gird
         for index, line_dict in self.data_df.loc[:, 0].to_dict().items():  # 遍历原始gird每一条线
@@ -404,11 +407,13 @@ class BruijnsSystem:
                 line_detail = self.tools.line_shift(line_dict, shift_vector, rewrite=False, drop=False)
                 self.data_df.at[index,i] = line_detail  # 命名方式1,2,3...
         # =============================== main ===============================
+        print(self.data_df.head())
         return is_main_changed
 
     def get_gird_lines_list(self):
         tittle = self.data_df.columns
         now_num_list = tittle[tittle.get_loc(0):]
+        print(self.data_df.loc[:, now_num_list])
         return self.data_df.loc[:, now_num_list].values.tolist()
 
 
@@ -446,7 +451,8 @@ def pd_print(df: pd.DataFrame, max_length=20):
             return val_str[:half_length] + '...' + val_str[-half_length:]
         return val_str
     df_shortened = df.apply(lambda col: col.map(lambda x: truncate_middle(x)))
-    print(tabulate(df_shortened, headers='keys', tablefmt="pretty")) #orgtbl #presto #pretty #github
+    print(df_shortened.head())
+    # print(tabulate(df_shortened, headers='keys', tablefmt="pretty")) #orgtbl #presto #pretty #github
 
 def deep_get_size(obj, seen=None):
     """
