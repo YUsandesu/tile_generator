@@ -466,10 +466,8 @@ class Tools2D:
 
         if min_value:
             back_np = np.where(np.abs(nums) < min_value, 0, back_np)
-        elif max_value:
+        if max_value:
             back_np = np.where(np.abs(nums) > max_value, np.nan, back_np)
-        else:
-            raise ValueError("没有过滤任何值")
 
         return back_np
 
