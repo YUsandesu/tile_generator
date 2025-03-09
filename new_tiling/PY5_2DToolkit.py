@@ -171,10 +171,19 @@ class Tools2D:
             self.screeninfo = screen_info
 
     def reset(self):
-        """
-        调用_init_()重新初始化
-        """
-        self.__init__()
+        self.point_dic.clear()  # 存储点的字典
+        self.Segmentline_dic.clear()  # 存储线段的字典
+        self.surface_dic.clear()  # 存储面的字典
+        self.line_dic.clear() # 存储直线的字典
+        self.reverse_point_dic = defaultdict(list)  # 创建储存点的反字典 便于倒查
+        # 初始化字母表
+        self.alphabetize_Capital = [chr(i) for i in range(65, 91)]  # ASCII 65-90 对应 A-Z
+        self.alphabetize = [chr(i) for i in range(97, 123)]  # ASCII 范围 97 到 122
+        # 初始化字母队列和索引
+        self.letter_queue = self.alphabetize.copy()  # [a,b,c...z]
+        self.letter_queue_capital = self.alphabetize_Capital.copy()  # [A,B,C,D...Z]
+        self.letter_index = 0  # 字母的后缀序列
+        self.letter_index_capital = 0  # 字母的后缀序列
 
     def get_point_dic(self):
         return self.point_dic
