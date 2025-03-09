@@ -1,8 +1,5 @@
 import sys
 import time
-
-from xarray.util.generate_ops import inplace
-
 from new_tiling.PY5_2DToolkit import Tools2D
 import numpy as np
 import pandas as pd
@@ -10,8 +7,6 @@ import warnings
 from itertools import islice
 from tabulate import tabulate
 import humanize
-
-from new_tiling.the_control import slider
 
 
 class BruijnsSystem:
@@ -429,12 +424,13 @@ class BruijnsSystem:
             now_num = max(now_num_list)
             if now_num >= end_num:
                 del_tar = [num for num in now_num_list if abs(num)>end_num-1]
-                print(f'当前项目减少,删除多余的line_num:{del_tar}')
+                if 0 in del_tar:del_tar.remove(0) #TODO 这里有点蠢
+                # print(f'当前项目减少,删除多余的line_num:{del_tar}')
                 self.data_df.drop(columns=del_tar,inplace=True)
                 start_num = end_num
             else:
                 start_num = now_num + 1
-                print(f'当前已创建:{now_num_list} start_num:{start_num}')
+                # print(f'当前已创建:{now_num_list} start_num:{start_num}')
         else:
             is_main_changed = True
             self.data_df = pd.DataFrame()
