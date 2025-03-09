@@ -176,7 +176,7 @@ class BruijnsSystem:
 
         self.tilling_pd.set_index(['index','mirror_index'], inplace=True)
         self.tilling_pd.sort_index(level='index',inplace=True)
-        pd_print(self.tilling_pd,muti_index=True)
+        pd_print(self.tilling_pd, multi_index=True)
 
         #调用示例,查找6的mirror_index
         print(self.tilling_pd.loc[6].index.get_level_values('mirror_index')[0])
@@ -460,12 +460,13 @@ class BruijnsSystem:
         now_num_list = tittle[tittle.get_loc(0):]
         return self.data_df.loc[:, now_num_list].values.tolist()
 
-def pd_print(df: pd.DataFrame, max_length=20,muti_index=False):
+def pd_print(df: pd.DataFrame, max_length=20, multi_index=False):
     """
     打印整个DataFrame，不论其大小，长值会被从中间缩略显示。
 
     :param df: 需要打印的 DataFrame
     :param max_length: 字符串的最大显示长度
+    :param multi_index: 是否显示多级索引
     """
 
     def truncate_middle(val):
@@ -492,7 +493,7 @@ def pd_print(df: pd.DataFrame, max_length=20,muti_index=False):
             return val_str[:half_length] + '...' + val_str[-half_length:]
         return val_str
     df_shortened = df.apply(lambda col: col.map(lambda x: truncate_middle(x)))
-    if muti_index:
+    if multi_index:
         df_shortened.reset_index(inplace=True)
         print(tabulate(df_shortened, headers='keys', tablefmt="pretty", showindex=False))
     else:
