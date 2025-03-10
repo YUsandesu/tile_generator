@@ -1106,7 +1106,8 @@ class Tools2D:
             return extract_np(self.line_dic[line])
         else:
             raise ValueError (f'line_dic中,没有找到id{line}')
-    def inter_line_group_np(self,lines_a:list,lines_b:list):
+
+    def inter_line_group_np(self,lines_a:list,lines_b:list, x_range: list | tuple = None, y_range: list | tuple = None):
         """
 
         计算两组直线的交点，使用 NumPy 批量处理。
@@ -1141,10 +1142,24 @@ class Tools2D:
         b_np = b_np[np.newaxis, :, :]  # 1 * M * 3
         inter_homo = np.cross(a_np,b_np)# N * M * 3
         x, y, w = inter_homo[:, :, 0], inter_homo[:, :, 1], inter_homo[:, :, 2]
-        mask_non_zero_w = np.abs(w) > 1e-6  # 设置一个阈值来判断 w 是否接近零
-        inter_points_np = np.full_like(inter_homo[:, :, :2], np.nan, dtype=np.float64)# [:, :, :2] 索引切片 取[x,y] 原axis:2-->[x,y,w]
-        inter_points_np[mask_non_zero_w, 0] = x[mask_non_zero_w] / w[mask_non_zero_w]  # 计算 x' = x / w
-        inter_points_np[mask_non_zero_w, 1] = y[mask_non_zero_w] / w[mask_non_zero_w]  # 计算 y' = y / w
+
+        # 计算掩码
+        mask_no_inter = np.abs(w) > 1e-6  # 设置一个阈值来判断 w 是否接近零
+        final_mask = mask_no_inter
+        if x_range:
+            x_min, x_max = sorted(x_range)
+            mask_x = (x_min <= x) & (x <= x_max)
+            final_mask = final_mask & mask_x
+        if y_range:
+            y_min, y_max = sorted(y_range)
+            mask_y = (y_min <= y) & (y <= y_max)
+            final_mask = final_mask & mask_y
+
+        # 应用掩码计算最终结果
+        inter_points_np = np.full_like(inter_homo[:, :, :2], np.nan, dtype=np.float64)
+        # [:, :, :2] 索引切片 取[x,y] 原axis:2-->[x,y,w]
+        inter_points_np[final_mask, 0] = x[final_mask] / w[final_mask]  # 计算 x' = x / w
+        inter_points_np[final_mask, 1] = y[final_mask] / w[final_mask]  # 计算 y' = y / w
         return inter_points_np
 
     def intersection_2_Segmentline_Matrix(self, Aline, Bline):
