@@ -1,5 +1,8 @@
 import sys
 import time
+
+from xarray.util.generate_ops import inplace
+
 from new_tiling.PY5_2DToolkit import Tools2D
 import numpy as np
 import pandas as pd
@@ -14,7 +17,7 @@ class BruijnsSystem:
         self.tools = Tools2D()
         self.data_df = pd.DataFrame()
         self.inter_df = pd.DataFrame()
-        self.tilling_pd = pd.DataFrame
+        self.map_pd = pd.DataFrame
 
     def get_girds_interaction(self,rebuild=True):
         """
@@ -132,58 +135,54 @@ class BruijnsSystem:
 
         print(f'\n===倒字典排序===\nself.interaction_data_line_id:{dict(islice(reverse_data.items(), 1))}...')
 
-    def vector_mapping_pd(self):
-        vectors_id = self.data_df.index.tolist()
+    def vector_map_pd(self)->None:
+        """
+        根据输入数据data_df中的origin_vector列，计算并生成一个DataFrame。
+        DataFrame包含了每个向量的原始编号、镜像编号和向量本身。
+
+        :attributes:
+            walking (list): 存储计算后的向量映射关系，包括时钟编号、原始编号、镜像编号和向量。
+
+        调用示例:
+        调用示例,查找6的mirror_index:
+        self.map_pd.loc[6].index.get_level_values('mirror_id')[0]
+        查找mirror_id=5 的 index:
+        self.map_pd.xs(5, level='mirror_id').index.get_level_values('origin_id')[0]
+        """
+        # xs全称是"cross-section"，用于从DataFrame中提取特定的横截面数据。
+        # 它通常用于多层索引（MultiIndex），允许通过指定某个索引级别和值来快速选择数据，无需手动拆分索引。
+
         the_origin_vectors = self.data_df['origin_vector'].to_dict()
-        target_vectors = [the_origin_vectors[i] for i in vectors_id]
         sides = len(the_origin_vectors)
 
-        walking: dict = {}
-        walking_mirror: dict = {}
+        walking: list = [] # clock_id,origin_id,mirror_id,vector
         if sides % 2 != 0:  # 奇数
+            mirror_vector = np.array(list(the_origin_vectors.values()))
+            mirror_vector = (-mirror_vector).tolist()
             for index, the_vector in the_origin_vectors.items():
-                if index in vectors_id:
-                    # 例子：sides = 5
-                    # 圆被分成5个等分，并且存在另外5个镜像等分，总共10个分区
-                    # 这种排列是由于180°旋转对称导致的
-                    # 计算：360度/10 = 36度 -> 180度/36度 = 5
-                    # 索引镜像：列表长度10 原索引 i 镜像到 (i + 镜像间隔:sides) % 总等分数:sides * 2
-                    # 例如: 0, 2, 4, 6, 8 分别镜像到: 5, 7, 9, 1, 3
-                    # 值: 1, 2, 3, 4, 5 分别变为: -1, -2, -3, -4, -5
-                    walking[2 * index] = the_vector
-                    walking_mirror[(2 * index + sides) % (sides * 2)] = [-the_vector[0], -the_vector[1]]
+                # 例：sides = 5
+                # 圆被分成5个等分，并且存在另外5个镜像等分，总共10个分区
+                # 这种排列是由于180°旋转对称导致的
+                # 计算：360度/10 = 36度 -> 180度/36度 = 5
+                # 索引镜像：列表长度为10，原索引 i 镜像到 (i + 镜像间隔:sides) % 总等分数:sides * 2
+                # 例如: 0, 2, 4, 6, 8 分别镜像到: 5, 7, 9, 1, 3
+                # 值: 1, 2, 3, 4, 5 分别变为: -1, -2, -3, -4, -5
+                walking.append(
+                    [index * 2, index, index + sides, the_vector])
+                walking.append([(index * 2+ sides) % (sides * 2), index + 5, index, mirror_vector[index]])
+            self.map_pd = pd.DataFrame(walking, columns=['clock_id','origin_id','mirror_id','vector'])
+            self.map_pd.set_index(['clock_id','origin_id','mirror_id'], inplace=True)
+            self.map_pd.sort_index(level='clock_id',inplace=True)
+            self.map_pd.index = self.map_pd.index.droplevel('clock_id')
         else:
-            # 偶数
-            walking = {index: the_vector for index, the_vector in the_origin_vectors.items() if index in vectors_id}
-            # 对于偶数边形，正对的向量可能是冗余的
-            # 例如 sides = 6 时，向量 0 和 3, 1 和 4, 2 和 5 互为正对
+            # 例: sides = 6 时，向量 0 和 3, 1 和 4, 2 和 5 互为正对
             # 为了避免在初始状态 (shift_distance = 0) 下，walking 和 walking_mirror 选取到重复的向量
             # walking_mirror 的选取需要排除 walking 中已有的向量，并选择 "对位" 的向量
-            # "对位" 的向量通过 (i + 镜像间隔:sides/2) % 总等分数:sides 计算得到，它指向与 index 索引向量正对的位置
-            walking_mirror = {index: the_vector
-                              for index, the_vector in the_origin_vectors.items()
-                              if (index + sides / 2) % sides in vectors_id
-                              and index not in walking.keys()}
-        temp_dict = walking | walking_mirror
-
-        # Create DataFrame using single column with list as its elements
-        self.tilling_pd = pd.DataFrame(list(temp_dict.items()), columns=['index', 'vector'])
-
-        # 经过对称已经是偶数了,具有镜面对称
-        num_list = list(temp_dict.keys())
-        mirror_num_list = num_list[len(num_list) // 2:] + num_list[:len(num_list) // 2]
-        self.tilling_pd['mirror_index'] = mirror_num_list
-
-        self.tilling_pd.set_index(['index','mirror_index'], inplace=True)
-        self.tilling_pd.sort_index(level='index',inplace=True)
-        pd_print(self.tilling_pd, multi_index=True)
-
-        #调用示例,查找6的mirror_index
-        print(self.tilling_pd.loc[6].index.get_level_values('mirror_index')[0])
-        #查找mirror_index=5 的 index
-        print(self.tilling_pd.xs(5, level='mirror_index').index.get_level_values('index')[0])
-        # print(self.tilling_pd.loc[3,'vector'])
-        # print(self.tilling_pd[self.tilling_pd['mirror_index'] == 8]['vector'].iloc[0])#因为只有唯一值,使用.iloc[0]
+            # "对位" 的向量通过 (i + 镜像间隔:sides//2) % 总等分数:sides 计算得到，它指向与 index 索引向量正对的位置
+            walking = [[index, (index + sides // 2) % sides, the_vector]
+                       for index, the_vector in the_origin_vectors.items()]
+            self.map_pd = pd.DataFrame(walking, columns=['origin_id', 'mirror_id', 'vector'])
+            self.map_pd.set_index(['origin_id', 'mirror_id'], inplace=True)
 
     def get_tilling_shape(self, vectors_id):
         """
@@ -199,40 +198,14 @@ class BruijnsSystem:
         #     """使用向量叉积进行顺时针排序"""
         #     center = np.mean(the_vectors, axis=0)
         #     return sorted(the_vectors, key=lambda v: np.arctan2(v[1] - center[1], v[0] - center[0]))
-        the_origin_vectors = self.data_df['origin_vector'].to_dict()
-        target_vectors = [the_origin_vectors[i] for i in vectors_id]
-        sides = len(the_origin_vectors)
+        vectors_index = self.map_pd.index.tolist()
+        enable_vectors = []
+        for i in vectors_index:
+            if i[0] in vectors_id or i[1] in vectors_id:
+                enable_vectors.append(i[0])
 
-        walking:dict={}
-        walking_mirror:dict={}
-        #TODO 此处应该根据mapping优化 不用重复生成
-        if sides % 2 != 0:  # 奇数
-            for index, the_vector in the_origin_vectors.items():
-                if index in vectors_id:
-                    # 例子：sides = 5
-                    # 圆被分成5个等分，并且存在另外5个镜像等分，总共10个分区
-                    # 这种排列是由于180°旋转对称导致的
-                    # 计算：360度/10 = 36度 -> 180度/36度 = 5
-                    # 索引镜像：列表长度10 原索引 i 镜像到 (i + 镜像间隔:sides) % 总等分数:sides * 2
-                    # 例如: 0, 2, 4, 6, 8 分别镜像到: 5, 7, 9, 1, 3
-                    # 值: 1, 2, 3, 4, 5 分别变为: -1, -2, -3, -4, -5
-                    walking[2 * index] = the_vector
-                    walking_mirror [(2 * index + sides) % (sides * 2)]=[-the_vector[0], -the_vector[1]]
-        else:
-            # 偶数
-            walking = {index: the_vector for index, the_vector in the_origin_vectors.items() if index in vectors_id}
-            # 对于偶数边形，正对的向量可能是冗余的
-            # 例如 sides = 6 时，向量 0 和 3, 1 和 4, 2 和 5 互为正对
-            # 为了避免在初始状态 (shift_distance = 0) 下，walking 和 walking_mirror 选取到重复的向量
-            # walking_mirror 的选取需要排除 walking 中已有的向量，并选择 "对位" 的向量
-            # "对位" 的向量通过 (i + 镜像间隔:sides/2) % 总等分数:sides 计算得到，它指向与 index 索引向量正对的位置
-            walking_mirror = {index:the_vector
-                              for index, the_vector in the_origin_vectors.items()
-                              if (index+sides/2)%sides in vectors_id
-                              and index not in walking.keys()}
-        temp_dict = walking | walking_mirror
-        walking_dict = {key:temp_dict[key] for key in sorted(list(temp_dict.keys()))}
-
+        print(enable_vectors)
+        breakpoint()
         # tilling_vectors只是移动的路径,需要绘制成坐标点
         tilling_vectors_np = np.array(list((walking | walking_mirror).values()))
         cumulative_sum = np.cumsum(tilling_vectors_np, axis=0)
@@ -519,11 +492,14 @@ def deep_get_size(obj, seen=None):
 
 if __name__ == "__main__":
     a=BruijnsSystem()
-    a.create_gird(sides=5,max_num_of_line=20,shifted_distance=0)
-    a.vector_mapping_pd()
-    # pd_print(a.data_df,100)
+    a.create_gird(sides=6,max_num_of_line=20,shifted_distance=0)
     a.get_girds_interaction()
-    pd_print(a.inter_df)
+    pd_print(a.data_df)
+    a.vector_map_pd()
+    # a.get_tilling_shape([0, 1, 4])
+    # print(a.map_pd.index.get_level_values('mirror_index'))
     # example_point = a.inter_df.loc[(0,1),(1,1)]
-    # print(a.get_tilling_information([0,1,4]))
+
+
+    # print())
     # print(example_point)
