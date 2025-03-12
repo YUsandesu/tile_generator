@@ -47,7 +47,22 @@ class BruijnsSystem:
         self.inter_df = pd.DataFrame(inter_info.tolist(),columns=the_list,index=the_list)
 
     def _sort_girds_interaction(self):
+        """
+        Bruijns 系统中基于交点建立网格线邻接关系的关键预处理步骤。
+        `self.inter_sorted_df` 中排序和组织的交点数据支持后续依赖网格网络有序遍历的算法，如路径查找、图构建或网格连通性特征提取。
 
+        排序逻辑:
+            - 主排序键: 交点坐标 (x, y)。利用 `numpy.unique` 默认排序，按 x 坐标升序，x 相等时按 y 升序。
+            - 方向调整: 对于 x 方向分量为负，或 x 分量为零且 y 分量为负的线段，排序顺序反转，确保与预期遍历方向一致。
+
+        输出数据结构 (`self.inter_sorted_df`):
+            一个 pandas DataFrame，其中:
+                - 列: 网格线标识符（元组）。
+                - 值: 按线段方向排序的交点信息列表，每项为以下之一:
+                    - `None`: 占位符，用于保持 DataFrame 形状。
+                    - `[line_index]`: 单条线在此点相交。
+                    - `[line_index_1, line_index_2, ...]`: 多条线在此点相交。
+        """
         def get_direction(l_id:tuple)->tuple:
             """
             根据direction_vector来确定直线走向。
@@ -255,7 +270,6 @@ class BruijnsSystem:
         # print(spliced_inter)
         # print(f'splice_tilling:{return_list}')
         return return_info, return_list
-
     def create_tilling(self, start_inter_point: tuple, num=10):
 
         now_tilling = []
