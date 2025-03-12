@@ -20,6 +20,7 @@ class BruijnsSystem:
         self.tools = Tools2D()
         self.data_df = pd.DataFrame()
         self.inter_df = pd.DataFrame()
+        self.inter_sorted_df = pd.DataFrame()
         self.map_pd = pd.DataFrame
 
     def get_girds_interaction(self,rebuild=True):
@@ -89,10 +90,9 @@ class BruijnsSystem:
         # 调用示例>>>self.inter_df.loc[(2,0),(1,1)]
 
     def _sort_girds_interaction(self):
-        def process_column(col):
+        def process_column(col)->list:
             return col.apply(lambda x: [np.nan, np.nan] if not isinstance(x, list) else x).tolist()
-
-        def determine_direction(line_tuple):
+        def get_direction(l_id:tuple)->tuple:
             """
             根据direction_vector来确定直线走向。
             定义如下：
@@ -108,48 +108,48 @@ class BruijnsSystem:
             返回:
             tuple: 一个包含方向向量 x 和 y 分量符号（sx, sy）的元组。
             """
-            line_dict = self.data_df.loc[line_tuple[0],line_tuple[1]]
+            line_dict = self.data_df.loc[l_id[0],l_id[1]]
             d_vector = line_dict['direction_vector']
             return np.sign(d_vector[0]),np.sign(d_vector[1])
         inter_data = self.inter_df
-        # inter_data.reset_index(drop=True,inplace=True)
-        pd_print(inter_data,multi_index=True)
-        inter_dict = inter_data.apply(process_column).to_dict(orient='list') #把nan换成二维的[nan,nan]
+        deep=len(inter_data)
+        lines_index = inter_data.index
+        inter_dict = inter_data.apply(process_column).to_dict(orient='list')  # 把nan换成二维的[nan,nan]
         walk_dict = {}
         for line_id,inter_list in inter_dict.items():
             arr = np.array(inter_list)
-            # arr = np.ma.masked_where(np.isnan(arr),arr)
-            s_x,s_y=determine_direction(line_id)
-            queue_v,indices,counts = np.unique(arr, axis=0, return_index=True, return_counts=True)
-            same_v = queue_v[counts>1]
-            same_id = [np.where((arr == values).all(axis=1))[0] for values in same_v if not np.isnan(values).any(axis=1)]
-            indices=indices[np.where(~np.isnan(queue_v).any(axis=1))] #以queue_v来过滤为实际为nan的indices
-            if s_x<0:
-                indices = indices[::-1]
-            elif s_x==0 and s_y<0:
+            s_x,s_y=get_direction(line_id)
+            queue_p,indices,counts = np.unique(arr, axis=0, return_index=True, return_counts=True)
+            # queue_p: 排序后的队列 (去重, 默认以 [x,y] 中的 x 排序, 如果相同, 以 y 排序)
+            # indices: queue_p 中元素在原数组 arr 中的序号
+            # counts: 每个元素在 arr 中出现的次数
+
+            # 获取没有nan的序号
+            valid_mask = np.where(~np.isnan(queue_p).any(axis=1))
+
+            # 同时过滤三个数组
+            queue_p = queue_p[valid_mask]  # 过滤后的唯一值坐标
+            indices = indices[valid_mask]  # 过滤后的首次出现索引
+            counts = counts[valid_mask]  # 过滤后的计数 (形状与queue_p一致)
+
+            same_v = queue_p[counts>1] #取具有重复的点[x,y]
+            same_id = indices[counts>1] #重复点的id
+
+            same_id_dict = {
+                s_id: np.where((arr == s_v).all(axis=1))[0]
+                for s_id, s_v in zip(same_id, same_v)
+            }
+
+            # 以queue_v中isnan的过滤indices实际为nan的indices,因为两者shape相同.
+            if s_x<0 or (s_x==0 and s_y<0):
+                #这两种情况需要取倒序
                 indices = indices[::-1]
 
-            # print(indices)
-            walk_dict[line_id] = []
-            for i in indices:
-                walk_dict[line_id].append([inter_data.index[i]])
-                for e_list in same_id:
-                    if i in e_list:
-                        # print(same_id)
-                        walk_dict[line_id] = [inter_data.index[s] for s in e_list]
-
-        walk_pd = pd.DataFrame(walk_dict)
-        print('walk')
-        pd_print(walk_pd)
-            # print(inter_dict[line_id])
-        #     print(s_x,s_y)
-        #     print(inter_data.loc[inter_dict[line_id][random.randint(2,50)],line_id].tolist(),inter_data.loc[inter_dict[line_id][1],line_id].tolist())
-        #
-        # print(inter_dict)
-            # print(s_x,s_y)
-            # print(c[line_id])
-            # print(inter_data.loc[c[line_id][0],line_id],inter_data.loc[c[line_id][1],line_id])
-            # breakpoint()
+            walk_dict[line_id] = [
+                [lines_index[i]] if i not in same_id_dict
+                else [lines_index[e] for e in same_id_dict[i]]
+                for i in indices
+            ] + [None]* (deep-len(indices)) #防止长度不一致.
 
 
 
