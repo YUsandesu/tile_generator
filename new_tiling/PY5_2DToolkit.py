@@ -3,6 +3,8 @@ from collections import defaultdict
 import math
 import warnings
 
+from numba.cuda.simulator.reduction import reduce
+
 from log_tool import time_logger
 
 
@@ -1085,10 +1087,12 @@ class Tools2D:
 
         """
         def extract_np(l_d:dict)-> np.ndarray:
-            a = 0 if 'a' in l_d else 1
-            k, b = l_d['k'], l_d['b']
-            print(np.array([k, -a, b]))
-            return np.array([k, -a, b])
+            if 'directed' not  in l_d:
+                a = 0 if 'a' in l_d else 1
+                k, b = l_d['k'], l_d['b']
+                return np.array([k, -a, b])
+            else:
+                return extract_np(self.directed_line_to_line(l_d,temp=True))
         if isinstance(line, list):
             matrix_list = []
             for item in line:
@@ -1158,8 +1162,8 @@ class Tools2D:
         # 应用掩码计算最终结果
         inter_points_np = np.full_like(inter_homo[:, :, :2], np.nan, dtype=np.float64)
         # [:, :, :2] 索引切片 取[x,y] 原axis:2-->[x,y,w]
-        inter_points_np[final_mask, 0] = x[final_mask] / w[final_mask]  # 计算 x' = x / w
-        inter_points_np[final_mask, 1] = y[final_mask] / w[final_mask]  # 计算 y' = y / w
+        inter_points_np[final_mask, 0] = self.reduce_errors_np(x[final_mask] / w[final_mask])  # 计算 x' = x / w
+        inter_points_np[final_mask, 1] = self.reduce_errors_np(y[final_mask] / w[final_mask])  # 计算 y' = y / w
         return inter_points_np
 
     def intersection_2_Segmentline_Matrix(self, Aline, Bline):
