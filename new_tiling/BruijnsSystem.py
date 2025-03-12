@@ -1,6 +1,8 @@
 import sys
 import time
 
+from pandas.core.interchange.dataframe_protocol import DataFrame
+from sqlalchemy.dialects.postgresql import array
 from xarray.util.generate_ops import inplace
 
 from new_tiling.PY5_2DToolkit import Tools2D
@@ -66,74 +68,83 @@ class BruijnsSystem:
                 # 遍历每一条线
                 for number_out, line_detail_out in out_gird.items(): # 遍历外层 gird 中的每一条线
                     for number_in, line_detail_in in in_gird.items(): # 遍历内层 gird 中的每一条线
+
                         interaction_point = self.tools.intersection_2line(line_detail_out, line_detail_in)
                         if interaction_point is not None:
                             if (t_out, number_out) not in temp_dict:
                                 temp_dict[(t_out, number_out)] = {}
                             if (t_in, number_in) not in temp_dict:
                                 temp_dict[(t_in, number_in)] = {}
-                            # 将交互点加入到 temp_dict 对应的位置
+
                             temp_dict[(t_out, number_out)][(t_in, number_in)] = interaction_point
                             temp_dict[(t_in, number_in)][(t_out, number_out)] = interaction_point  # 对称点
+
+
         # print(f'查找完毕temp_dict占用:{humanize.naturalsize(deep_get_size(temp_dict))}')
-        self.inter_df = pd.DataFrame(temp_dict)  # 将嵌套字典转换为DataFrame
+        self.inter_df = pd.DataFrame(temp_dict)  # 创建时指定 dtype=object
+
         # print(f'格式转换完毕,inter_df占用:{humanize.naturalsize(inter_df.memory_usage(deep=True).sum())}')
         # pd_print(inter_df)
         # 调用示例>>>self.inter_df.loc[(2,0),(1,1)]
 
     def _sort_girds_interaction(self):
-        # 指向1象限是x自小到大排列(+,+)=+,指向2象限是x自大到小排列(-,+)=-
-        # 指向3象限是x自大到小排列(-,-)=-,指向4象限是x自小到大排列(+,-)=+
-        # dy:         +                          +
-        #             -                          -
-        # 综上
-        # 只需要判断 pen_origin_vector 的dx符号,为正就是从小到大,为负就是从大到小
-        # 为0就判断dy的符号,为正就是dy从小到大,为负就是从大到小
+        def process_column(col):
+            return col.apply(lambda x: [np.nan, np.nan] if not isinstance(x, list) else x).tolist()
 
-        inter_data = self.interaction_data_point_location
-        print(f'===待处理信息===\n{dict(islice(inter_data.items(),3))}...')
+        def determine_direction(line_tuple):
+            """
+            根据direction_vector来确定直线走向。
+            定义如下：
+            - +x, +y（x递增）
+            - -x, +y（x递减）
+            - -x, -y（x递减）
+            - +x, -y（x递增）
+            该函数返回一个包含向量 x 和 y 分量符号的元组，用于指示向量在其象限中的方向。
 
-        # data = {
-        #     'id': [1, 2, 3],
-        #     'point': [[3, 30], [1, 10], [2, 20]]
-        # }
-        # df = pd.DataFrame(data)
-        # # 使用 key 参数指定一个函数，该函数从每个元素中提取用于排序的值（索引 0）
-        # sorted_df = df.sort_values(by='point', key=lambda col: col.apply(lambda p: p[0]))
-        # print(sorted_df)
+            参数:
+            line_tuple (tuple): 包含线条索引的元组。
 
-        reverse_data:dict = {}
-        # line_id 例: (a,b) --> girds_data[a]['girds'][b]
-        for point, line_id_list in inter_data.items():
-            for line_id in line_id_list:
+            返回:
+            tuple: 一个包含方向向量 x 和 y 分量符号（sx, sy）的元组。
+            """
+            line_dict = self.data_df.loc[line_tuple[0],line_tuple[1]]
+            d_vector = line_dict['direction_vector']
+            return np.sign(d_vector[0]),np.sign(d_vector[1])
+        inter_data = self.inter_df
+        # inter_data.reset_index(drop=True,inplace=True)
+        pd_print(inter_data,multi_index=True)
+        inter_dict = inter_data.apply(process_column).to_dict(orient='list') #把nan换成二维的[nan,nan]
+        for line_id,inter_list in inter_dict.items():
+            arr = np.array(inter_list)
+            # arr = np.ma.masked_where(np.isnan(arr),arr)
+            s_x,s_y=determine_direction(line_id)
+            queue_v,indices,counts = np.unique(arr, axis=0, return_index=True, return_counts=True)
+            same_v = queue_v[counts>1]
+            # only take non-nan values for same_id
+            same_id = [np.where((arr == values).all(axis=1))[0] for values in same_v]
 
-                if not isinstance(line_id, tuple):
-                    line_id = tuple(line_id)  # 防止传入的是列表导致错误
+            # same_id = [np.where((arr == values).all(axis=1))[0] for values in same_v if not np.isnan(values).any()]
+            # print actual indices and corresponding values
+            for ids in same_id:
+                print(ids)
+                for idx in ids:
+                    print(f"Index: {idx}, Value: {arr[idx]}")
 
-                if line_id not in reverse_data:
-                    reverse_data[line_id] = []
-                reverse_data[line_id].append(point)
+            breakpoint()
+            if s_x<0:
+                indices = indices[::-1]
+            elif s_x==0 and s_y<0:
+                indices = indices[::-1]
 
-        for line_id, points in reverse_data.items():
-            data_id, girds_id = line_id[0], line_id[1]
-            line = self.girds_data[data_id]['girds'][girds_id]
-            direction_vector = line['direction_vector']
-            dx, dy = direction_vector
+            # for i in indices:
+            # inter_dict[line_id]=[inter_data.index[i] for i in sorted_indices] #反向查找,得到交点信息.
 
-            points = np.array(points)
-            if not dx == 0:
-                sorted_indices = np.argsort(np.sign(dx) * points[:, 0])  # 根据x坐标
-            elif not dy == 0:
-                sorted_indices = np.argsort(np.sign(dy) * points[:, 1])  # 根据y坐标
-            else:
-                continue
-            sorted_points = points[sorted_indices].tolist()
-            reverse_data[line_id] = sorted_points
+            # print(s_x,s_y)
+            # print(c[line_id])
+            # print(inter_data.loc[c[line_id][0],line_id],inter_data.loc[c[line_id][1],line_id])
+            # breakpoint()
 
 
-        self.interaction_data_line_id = reverse_data
-
-        print(f'\n===倒字典排序===\nself.interaction_data_line_id:{dict(islice(reverse_data.items(), 1))}...')
 
     def _vector_map_pd(self)->None:
         """
@@ -474,11 +485,10 @@ def deep_get_size(obj, seen=None):
 
 if __name__ == "__main__":
     a=BruijnsSystem()
-    a.create_gird(sides=5,max_num_of_line=20,shifted_distance=0)
-    a.get_girds_interaction()
+    a.create_gird(sides=5,max_num_of_line=200,shifted_distance=0)
     pd_print(a.data_df)
-    a._vector_map_pd()
-    print(a._get_tilling_shape([0, 1, 4]))
+    a.get_girds_interaction()
+    a._sort_girds_interaction()
     # print(a.map_pd.index.get_level_values('mirror_index'))
     # example_point = a.inter_df.loc[(0,1),(1,1)]
 
