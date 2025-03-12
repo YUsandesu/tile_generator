@@ -135,10 +135,10 @@ class BruijnsSystem:
 
         print(f'\n===倒字典排序===\nself.interaction_data_line_id:{dict(islice(reverse_data.items(), 1))}...')
 
-    def vector_map_pd(self)->None:
+    def _vector_map_pd(self)->None:
         """
         根据输入数据data_df中的origin_vector列，计算并生成一个DataFrame。
-        DataFrame包含了每个向量的原始编号、镜像编号和向量本身。
+        DataFrame: 'origin_id','mirror_id','vector'。
 
         :attributes:
             walking (list): 存储计算后的向量映射关系，包括时钟编号、原始编号、镜像编号和向量。
@@ -184,46 +184,28 @@ class BruijnsSystem:
             self.map_pd = pd.DataFrame(walking, columns=['origin_id', 'mirror_id', 'vector'])
             self.map_pd.set_index(['origin_id', 'mirror_id'], inplace=True)
 
-    def get_tilling_shape(self, vectors_id):
+    def _get_tilling_shape(self, vectors_id_list):
         """
-        获得单个Tilling的形状
-        返回一个顺时针的Tilling的边的集合,根据顺序可以拼接出闭合的多边形
-        all_vectors_list是顺时针排列的origin_vector
-        vector_list是当前交点的vectors信息
-        返回一个列表,是拼接的顺序,可以按照这个顺序拼接出闭合多边形
+        Get the shape of a single tiling pattern.
+
+        这个函数计算并返回一个字典,将vector IDs映射到对应的坐标点,这些坐标点按顺时针顺序形成一个闭合多边形。
+
+        Args:
+            vectors_id_list: 一个id列表
+
+        Returns:
+            dict: 一个字典,将vector IDs 映射到segment。
+                  坐标点是通过vector的累加和计算得到的,形成一个闭合多边形。
+                  格式: {vector_id: segment。}
+                  其中segment。是一个[x, y]坐标的列表
         """
-
-        # # gird_origin_vectors 必须是顺时针排列
-        # def _sort_clockwise(the_vectors):
-        #     """使用向量叉积进行顺时针排序"""
-        #     center = np.mean(the_vectors, axis=0)
-        #     return sorted(the_vectors, key=lambda v: np.arctan2(v[1] - center[1], v[0] - center[0]))
-        vectors_index = self.map_pd.index.tolist()
-        enable_vectors = []
-        for i in vectors_index:
-            if i[0] in vectors_id or i[1] in vectors_id:
-                enable_vectors.append(i[0])
-
-        print(enable_vectors)
-        breakpoint()
-        # tilling_vectors只是移动的路径,需要绘制成坐标点
-        tilling_vectors_np = np.array(list((walking | walking_mirror).values()))
-        cumulative_sum = np.cumsum(tilling_vectors_np, axis=0)
+        enable_map = self.map_pd[(self.map_pd.index.get_level_values('origin_id').isin(vectors_id_list)) | (self.map_pd.index.get_level_values('mirror_id').isin(vectors_id_list))]
+        enable_vectors = enable_map['vector'].tolist()
+        enable_id = enable_map.index.get_level_values('origin_id').tolist()
+        # enable_vectors只是移动的路径,需要绘制成坐标点
+        cumulative_sum = np.cumsum(np.array(enable_vectors), axis=0)
         tilling = Tools2D.reduce_errors_np(cumulative_sum,max_value=False).tolist()# 防止出现无穷小数
-
-        # 此处一并返回原vector,方便拼接.
-        # vector_o[0]--> tilling[-1]和[0] (末尾-->开头)
-        # vector_o[1]--> [0]和[1] (第一个-->第二个)
-        # 以此类推
-        tilling_dict_positive = {}
-        tilling_dict_negative = {}
-        for t,(the_id, vector) in enumerate(walking_dict.items()):
-            if the_id in walking.keys():
-                tilling_dict_positive[the_id] = [tilling[t - 1], tilling[t]]
-            else:
-                tilling_dict_negative[the_id] = [tilling[t - 1], tilling[t]]
-
-        return tilling_dict_positive, tilling_dict_negative
+        return {enable_id[t]:i for t,i in enumerate(tilling)}
 
     def splice_tilling(self, interaction_point_location, spliced_inter=()):
         """
@@ -242,7 +224,7 @@ class BruijnsSystem:
         inter_lines_index_num: list[int, int] = data_point[interaction_point_location]
         now_vector: list[tuple[int | float]] = [tuple(o_vector[i]) for i, _ in inter_lines_index_num]
         # 获取自己的tilling形状
-        o_positive_sides, o_negative_sides = self.get_tilling_shape(o_vector, now_vector)
+        o_positive_sides, o_negative_sides = self._get_tilling_shape(o_vector, now_vector)
         origin_tilling: dict[tuple:list[list]] = o_positive_sides | o_negative_sides
         return_list = list(origin_tilling.values())
         # 查询正方向的点和负方向的点
@@ -266,7 +248,7 @@ class BruijnsSystem:
         return_info: list[dict] = []
         for next_point, is_positive in next_points_list:
             next_vectors = [tuple(o_vector[index]) for index, _ in data_point[tuple(next_point)]]
-            next_positive_sides, next_negative_sides = self.get_tilling_shape(o_vector, next_vectors)
+            next_positive_sides, next_negative_sides = self._get_tilling_shape(o_vector, next_vectors)
             next_sides = next_positive_sides | next_negative_sides
 
             target_side = set(now_vector) & set(next_vectors)
@@ -492,11 +474,11 @@ def deep_get_size(obj, seen=None):
 
 if __name__ == "__main__":
     a=BruijnsSystem()
-    a.create_gird(sides=6,max_num_of_line=20,shifted_distance=0)
+    a.create_gird(sides=5,max_num_of_line=20,shifted_distance=0)
     a.get_girds_interaction()
     pd_print(a.data_df)
-    a.vector_map_pd()
-    # a.get_tilling_shape([0, 1, 4])
+    a._vector_map_pd()
+    print(a._get_tilling_shape([0, 1, 4]))
     # print(a.map_pd.index.get_level_values('mirror_index'))
     # example_point = a.inter_df.loc[(0,1),(1,1)]
 
