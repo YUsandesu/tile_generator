@@ -151,6 +151,7 @@ class BruijnsSystem:
                 for i in indices
             ] + [None]* (deep-len(indices)) #防止长度不一致.
 
+        self.inter_sorted_df = pd.DataFrame(walk_dict)
 
 
     def _vector_map_pd(self)->None:
