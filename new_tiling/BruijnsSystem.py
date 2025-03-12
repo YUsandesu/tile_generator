@@ -2,9 +2,6 @@ import random
 import sys
 import time
 
-from pandas.core.interchange.dataframe_protocol import DataFrame
-from sqlalchemy.dialects.postgresql import array
-from xarray.util.generate_ops import inplace
 
 from new_tiling.PY5_2DToolkit import Tools2D
 import numpy as np
@@ -39,59 +36,18 @@ class BruijnsSystem:
         """
         tittles = self.data_df.columns
         girds_t = tittles[tittles.get_loc(0):]  # line的id列表
-        girds_dict = self.data_df.loc[:, girds_t].to_dict('index')   # 带数字索引的dict,gird为键
-
-        if rebuild is False:
-            #从out_dict删除已经创建过的点,不进行遍历
-            last_num = set(self.inter_df.columns.get_level_values(1).tolist())
-            now_num = set(girds_dict[0].keys())
-            if len(last_num)>len(now_num):
-                # 这时是缩小了范围
-                to_del_num = last_num - now_num
-                sides = range(len(self.data_df))
-                to_del_index = [(index,num)for index in sides for num in to_del_num]
-                self.inter_df.drop(index=to_del_index,inplace=True)
-                self.inter_df.drop(columns=to_del_index,inplace=True)
-                return
-            to_del_num = last_num & now_num
-            in_dict = girds_dict.copy()
-            for index,_ in girds_dict.items():
-                for i in to_del_num:
-                    girds_dict[index].pop(i)
-            out_dict = girds_dict
-        else:
-            in_dict = girds_dict
-            out_dict = girds_dict
-
-        #============================= main =============================
-        temp_dict = {}  # 创建一个字典用于批量构建 DataFrame
-        for t_out,out_gird in islice(out_dict.items(),len(out_dict)-1): # 遍历 gird_dict，外层循环遍历到倒数第二个 gird
-            for t_in,in_gird in islice(in_dict.items(),t_out+1,len(in_dict)): # 内层循环遍历从外层 gird 的下一个 gird 开始到最后一个 gird
-                # 遍历每一条线
-                for number_out, line_detail_out in out_gird.items(): # 遍历外层 gird 中的每一条线
-                    for number_in, line_detail_in in in_gird.items(): # 遍历内层 gird 中的每一条线
-
-                        interaction_point = self.tools.intersection_2line(line_detail_out, line_detail_in)
-                        if interaction_point is not None:
-                            if (t_out, number_out) not in temp_dict:
-                                temp_dict[(t_out, number_out)] = {}
-                            if (t_in, number_in) not in temp_dict:
-                                temp_dict[(t_in, number_in)] = {}
-
-                            temp_dict[(t_out, number_out)][(t_in, number_in)] = interaction_point
-                            temp_dict[(t_in, number_in)][(t_out, number_out)] = interaction_point  # 对称点
-
-
-        # print(f'查找完毕temp_dict占用:{humanize.naturalsize(deep_get_size(temp_dict))}')
-        self.inter_df = pd.DataFrame(temp_dict)  # 创建时指定 dtype=object
-
-        # print(f'格式转换完毕,inter_df占用:{humanize.naturalsize(inter_df.memory_usage(deep=True).sum())}')
-        # pd_print(inter_df)
-        # 调用示例>>>self.inter_df.loc[(2,0),(1,1)]
+        girds_list = self.data_df.loc[:, girds_t].to_numpy().tolist()
+        line_list = []
+        for i in girds_list:
+            line_list.extend(i)
+        sides = range(len(self.data_df))
+        the_list = [(index,num)for index in sides for num in girds_t]
+        inter_info = self.tools.inter_line_group_np(lines_a=line_list,lines_b=line_list)
+        inter_info = np.around(inter_info,10) #TODO 这里只能精度到10位,超过以后就会因为误差错误.
+        self.inter_df = pd.DataFrame(inter_info.tolist(),columns=the_list,index=the_list)
 
     def _sort_girds_interaction(self):
-        def process_column(col)->list:
-            return col.apply(lambda x: [np.nan, np.nan] if not isinstance(x, list) else x).tolist()
+
         def get_direction(l_id:tuple)->tuple:
             """
             根据direction_vector来确定直线走向。
@@ -114,7 +70,7 @@ class BruijnsSystem:
         inter_data = self.inter_df
         deep=len(inter_data)
         lines_index = inter_data.index
-        inter_dict = inter_data.apply(process_column).to_dict(orient='list')  # 把nan换成二维的[nan,nan]
+        inter_dict = inter_data.to_dict(orient='list')  # 把nan换成二维的[nan,nan]
         walk_dict = {}
         for line_id,inter_list in inter_dict.items():
             arr = np.array(inter_list)
@@ -152,7 +108,6 @@ class BruijnsSystem:
             ] + [None]* (deep-len(indices)) #防止长度不一致.
 
         self.inter_sorted_df = pd.DataFrame(walk_dict)
-
 
     def _vector_map_pd(self)->None:
         """
@@ -493,10 +448,23 @@ def deep_get_size(obj, seen=None):
 
 if __name__ == "__main__":
     a=BruijnsSystem()
-    a.create_gird(sides=5,max_num_of_line=200,shifted_distance=20)
-    pd_print(a.data_df)
+
+    a.create_gird(sides=5,max_num_of_line=200,shifted_distance=0)
+    pd_print(a.data_df,max_length=1000)
+
     a.get_girds_interaction()
+    pd_print(a.inter_df)
+
     a._sort_girds_interaction()
+    pd_print(a.inter_sorted_df)
+
+    print(a.inter_df.at[(2, 0), (4, 0)])
+    print(a.inter_df.at[(2, 0), (3, 0)])
+    print(a.inter_df.at[(2, 0), (1, 0)])
+
+    print(a.inter_df.at[(2, -5), (0, 3)])
+    print(a.inter_df.at[(4, 5), (0, 3)])
+
     # print(a.map_pd.index.get_level_values('mirror_index'))
     # example_point = a.inter_df.loc[(0,1),(1,1)]
 
