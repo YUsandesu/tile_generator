@@ -1,3 +1,4 @@
+import random
 import sys
 import time
 
@@ -114,33 +115,37 @@ class BruijnsSystem:
         # inter_data.reset_index(drop=True,inplace=True)
         pd_print(inter_data,multi_index=True)
         inter_dict = inter_data.apply(process_column).to_dict(orient='list') #把nan换成二维的[nan,nan]
+        walk_dict = {}
         for line_id,inter_list in inter_dict.items():
             arr = np.array(inter_list)
             # arr = np.ma.masked_where(np.isnan(arr),arr)
             s_x,s_y=determine_direction(line_id)
             queue_v,indices,counts = np.unique(arr, axis=0, return_index=True, return_counts=True)
             same_v = queue_v[counts>1]
-            same_id = [np.where((arr == values).all(axis=1))[0] for values in same_v]
-
+            same_id = [np.where((arr == values).all(axis=1))[0] for values in same_v if not np.isnan(values).any(axis=1)]
+            indices=indices[np.where(~np.isnan(queue_v).any(axis=1))] #以queue_v来过滤为实际为nan的indices
             if s_x<0:
                 indices = indices[::-1]
             elif s_x==0 and s_y<0:
                 indices = indices[::-1]
 
             # print(indices)
-            inter_dict[line_id] = []
+            walk_dict[line_id] = []
             for i in indices:
-                inter_dict[line_id].append([inter_data.index[i]])
+                walk_dict[line_id].append([inter_data.index[i]])
                 for e_list in same_id:
                     if i in e_list:
                         # print(same_id)
-                        inter_dict[line_id] = [inter_data.index[s] for s in e_list]
-            # print(inter_dict[line_id])
-            print(s_x,s_y)
-            #TODO 这里可以打印出(nan,nan) 但是字典里看不到.
-            print(inter_data.loc[inter_dict[line_id][0],line_id].tolist(),inter_data.loc[inter_dict[line_id][1],line_id].tolist())
+                        walk_dict[line_id] = [inter_data.index[s] for s in e_list]
 
-        print(inter_dict)
+        walk_pd = pd.DataFrame(walk_dict)
+        print('walk')
+        pd_print(walk_pd)
+            # print(inter_dict[line_id])
+        #     print(s_x,s_y)
+        #     print(inter_data.loc[inter_dict[line_id][random.randint(2,50)],line_id].tolist(),inter_data.loc[inter_dict[line_id][1],line_id].tolist())
+        #
+        # print(inter_dict)
             # print(s_x,s_y)
             # print(c[line_id])
             # print(inter_data.loc[c[line_id][0],line_id],inter_data.loc[c[line_id][1],line_id])
