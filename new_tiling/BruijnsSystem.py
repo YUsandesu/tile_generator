@@ -120,25 +120,27 @@ class BruijnsSystem:
             s_x,s_y=determine_direction(line_id)
             queue_v,indices,counts = np.unique(arr, axis=0, return_index=True, return_counts=True)
             same_v = queue_v[counts>1]
-            # only take non-nan values for same_id
             same_id = [np.where((arr == values).all(axis=1))[0] for values in same_v]
 
-            # same_id = [np.where((arr == values).all(axis=1))[0] for values in same_v if not np.isnan(values).any()]
-            # print actual indices and corresponding values
-            for ids in same_id:
-                print(ids)
-                for idx in ids:
-                    print(f"Index: {idx}, Value: {arr[idx]}")
-
-            breakpoint()
             if s_x<0:
                 indices = indices[::-1]
             elif s_x==0 and s_y<0:
                 indices = indices[::-1]
 
-            # for i in indices:
-            # inter_dict[line_id]=[inter_data.index[i] for i in sorted_indices] #反向查找,得到交点信息.
+            # print(indices)
+            inter_dict[line_id] = []
+            for i in indices:
+                inter_dict[line_id].append([inter_data.index[i]])
+                for e_list in same_id:
+                    if i in e_list:
+                        # print(same_id)
+                        inter_dict[line_id] = [inter_data.index[s] for s in e_list]
+            # print(inter_dict[line_id])
+            print(s_x,s_y)
+            #TODO 这里可以打印出(nan,nan) 但是字典里看不到.
+            print(inter_data.loc[inter_dict[line_id][0],line_id].tolist(),inter_data.loc[inter_dict[line_id][1],line_id].tolist())
 
+        print(inter_dict)
             # print(s_x,s_y)
             # print(c[line_id])
             # print(inter_data.loc[c[line_id][0],line_id],inter_data.loc[c[line_id][1],line_id])
@@ -485,7 +487,7 @@ def deep_get_size(obj, seen=None):
 
 if __name__ == "__main__":
     a=BruijnsSystem()
-    a.create_gird(sides=5,max_num_of_line=200,shifted_distance=0)
+    a.create_gird(sides=5,max_num_of_line=200,shifted_distance=20)
     pd_print(a.data_df)
     a.get_girds_interaction()
     a._sort_girds_interaction()
