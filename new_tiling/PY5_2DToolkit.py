@@ -1160,7 +1160,7 @@ class Tools2D:
             final_mask = final_mask & mask_y
 
         # 应用掩码计算最终结果
-        inter_points_np = np.full_like(inter_homo[:, :, :2], np.nan, dtype=np.float64)
+        inter_points_np = np.full_like(inter_homo[:, :, :2], [np.nan,np.nan], dtype=np.float64)
         # [:, :, :2] 索引切片 取[x,y] 原axis:2-->[x,y,w]
         inter_points_np[final_mask, 0] = self.reduce_errors_np(x[final_mask] / w[final_mask])  # 计算 x' = x / w
         inter_points_np[final_mask, 1] = self.reduce_errors_np(y[final_mask] / w[final_mask])  # 计算 y' = y / w
