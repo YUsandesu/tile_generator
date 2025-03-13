@@ -2,12 +2,11 @@ import random
 import sys
 import time
 
-
 from new_tiling.PY5_2DToolkit import Tools2D
 import numpy as np
 import pandas as pd
 import warnings
-from itertools import islice
+from itertools import islice,product
 from tabulate import tabulate
 import humanize
 
@@ -34,18 +33,51 @@ class BruijnsSystem:
             第一级索引表示 'gird' 的索引，第二级索引表示该层gird中有向直线的编号(line_num)。
             值表示交点坐标[float,float]。可以通过.loc[(index,num),(index,num)]查询任意两条线的交点
         """
-        tittles = self.data_df.columns
-        girds_t = tittles[tittles.get_loc(0):]  # line的id列表
-        girds_list = self.data_df.loc[:, girds_t].to_numpy().tolist()
-        line_list = []
-        for i in girds_list:
-            line_list.extend(i)
-        sides = range(len(self.data_df))
-        the_list = [(index,num)for index in sides for num in girds_t]
-        inter_info = self.tools.inter_line_group_np(lines_a=line_list,lines_b=line_list)
-        inter_info = np.around(inter_info,10) #TODO 这里只能精度到10位,超过以后就会因为误差错误.
-        self.inter_df = pd.DataFrame(inter_info.tolist(),columns=the_list,index=the_list)
+        df_col = self.data_df.columns
+        d_col = df_col[df_col.get_loc(0):]  # line的id列表
 
+        # 生成当前所有线段标识符（index, num）
+        col = list(product(range(len(self.data_df)), d_col))
+        # 获取对应的线段数据
+        lines_np = self.data_df.loc[:, d_col].to_numpy().flatten()
+        lines = lines_np.tolist()
+
+        if rebuild:
+            inter_inf = np.around(self.tools.inter_line_group_np(lines_a=lines, lines_b=lines), 10)
+            self.inter_df = pd.DataFrame(inter_inf.tolist(), columns=col, index=col)
+            pd_print(self.inter_df)
+        else:
+            last_col = self.inter_df.columns.tolist()
+            last_num = len(last_col)
+            now_num = len(col)
+            if now_num>last_num:
+                last_col_np = np.array(last_col)
+                col_np = np.array(col)
+
+                last_col_np_mat = last_col_np[:,np.newaxis,:] #nx1x2
+                col_np_mat  = col_np[np.newaxis,:,:] #1xmx2
+
+                col_mask = (last_col_np_mat==col_np_mat).all(axis=2).any(axis=0) #nxmx2 得到的是col_np_mat的mask
+                index = np.where(~col_mask)[0]
+
+                new_col = [c for t,c in enumerate(col) if t in index] #因为列名必须是数组形式,只能这么转换回来.
+                lines_new= lines_np[index].tolist()
+
+                inter_inf = np.around(
+                    self.tools.inter_line_group_np(lines_a=lines, lines_b=lines_new), 10
+                )
+                new_df = pd.DataFrame(inter_inf.tolist(), index=col, columns=new_col)
+
+                # 合并 new_df 与 new_df.T，生成一个包含两边信息的 DataFrame
+                symmetric_new_df = new_df.combine_first(new_df.T)
+
+                # 只用一次 combine_first 更新 self.inter_df
+                self.inter_df = self.inter_df.combine_first(symmetric_new_df)
+
+            else:
+                tar_i = set(last_col) - set(col)
+                tar_i = list(tar_i)
+                self.inter_df.drop(index=tar_i,columns=tar_i,inplace=True)
     def _sort_girds_interaction(self):
         """
         Bruijns 系统中基于交点建立网格线邻接关系的关键预处理步骤。
@@ -83,8 +115,9 @@ class BruijnsSystem:
             d_vector = line_dict['direction_vector']
             return np.sign(d_vector[0]),np.sign(d_vector[1])
         inter_data = self.inter_df
+
         lines_index = inter_data.index
-        inter_dict = inter_data.to_dict(orient='list')  # 把nan换成二维的[nan,nan]
+        inter_dict = inter_data.to_dict(orient='list')  # 这里可以加.apply(map)把nan换成二维的[nan,nan]
         walk_dict = {}
 
         data_col = self.data_df.columns
@@ -98,7 +131,6 @@ class BruijnsSystem:
             # queue_p: 排序后的队列 (去重, 默认以 [x,y] 中的 x 排序, 如果相同, 以 y 排序)
             # indices: queue_p 中元素在原数组 arr 中的序号
             # counts: 每个元素在 arr 中出现的次数
-
             # 获取没有nan的序号
             valid_mask = np.where(~np.isnan(queue_p).any(axis=1))
 
@@ -111,11 +143,10 @@ class BruijnsSystem:
             same_id = indices[counts>1] #重复点的id
 
             same_id_dict = {
-                s_id: np.where((arr == s_v).all(axis=1))[0]
+                s_id: np.where((arr == s_v).all(axis=1))[0] #{same_id: line值的index序号}
                 for s_id, s_v in zip(same_id, same_v)
             }
 
-            # 以queue_v中isnan的过滤indices实际为nan的indices,因为两者shape相同.
             if s_x<0 or (s_x==0 and s_y<0):
                 #这两种情况需要取倒序
                 indices = indices[::-1]
@@ -127,6 +158,8 @@ class BruijnsSystem:
             ] + [np.nan]* (min_deep-len(indices)) #防止长度不一致.
 
         self.inter_sorted_df = pd.DataFrame(walk_dict)
+
+
 
     def _vector_map_pd(self)->None:
         """
@@ -469,21 +502,19 @@ if __name__ == "__main__":
 
     a.create_gird(sides=5,max_num_of_line=20,shifted_distance=0)
     a.get_girds_interaction()
-    a.create_gird(sides=5, max_num_of_line=300, shifted_distance=0)
-    a.get_girds_interaction(rebuild=True)
-    pd_print(a.inter_df)
-
+    a.create_gird(sides=5, max_num_of_line=40, shifted_distance=0)
+    a.get_girds_interaction(rebuild=False)
     pd_print(a.inter_df)
 
     a._sort_girds_interaction()
-    pd_print(a.inter_sorted_df)
+    pd_print(a.inter_sorted_df,max_length=1000)
 
-    print(a.inter_df.at[(2, 0), (4, 0)])
-    print(a.inter_df.at[(2, 0), (3, 0)])
-    print(a.inter_df.at[(2, 0), (1, 0)])
-
-    print(a.inter_df.at[(2, -5), (0, 3)])
-    print(a.inter_df.at[(4, 5), (0, 3)])
+    # print(a.inter_df.at[(2, 0), (4, 0)])
+    # print(a.inter_df.at[(2, 0), (3, 0)])
+    # print(a.inter_df.at[(2, 0), (1, 0)])
+    #
+    # print(a.inter_df.at[(2, -5), (0, 3)])
+    # print(a.inter_df.at[(4, 5), (0, 3)])
 
     # print(a.map_pd.index.get_level_values('mirror_index'))
     # example_point = a.inter_df.loc[(0,1),(1,1)]
