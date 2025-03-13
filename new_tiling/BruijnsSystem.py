@@ -16,7 +16,7 @@ class BruijnsSystem:
         self.tools = Tools2D()
         self.data_df = pd.DataFrame()
         self.inter_df = pd.DataFrame()
-        self.inter_sorted_df = pd.DataFrame()
+        self.sorted_df = pd.DataFrame()
         self.map_pd = pd.DataFrame
 
     def get_girds_interaction(self,rebuild=True):
@@ -157,9 +157,7 @@ class BruijnsSystem:
                 for i in indices
             ] + [np.nan]* (min_deep-len(indices)) #防止长度不一致.
 
-        self.inter_sorted_df = pd.DataFrame(walk_dict)
-
-
+        self.sorted_df = pd.DataFrame(walk_dict)
 
     def _vector_map_pd(self)->None:
         """
@@ -232,6 +230,80 @@ class BruijnsSystem:
         cumulative_sum = np.cumsum(np.array(enable_vectors), axis=0)
         tilling = Tools2D.reduce_errors_np(cumulative_sum,max_value=False).tolist()# 防止出现无穷小数
         return {enable_id[t]:i for t,i in enumerate(tilling)}
+
+    def get_start_p(self)->tuple[tuple,int]:
+        """
+        函数功能:
+            从 self.inter_df 中筛选出列名第一个元素为 0 的列，
+            然后计算这些列中各行与坐标 [100, 100] 的欧几里得距离，
+            最后返回距离最小值对应的 (行索引, 列名称)。
+
+        返回:
+            (row_index, column_name) -> tuple[tuple,tuple]
+        """
+
+        # 将所有列名转换为 NumPy 数组
+        p_col = self.inter_df.columns.to_numpy()
+
+        # 创建一个向量化函数，用于获取列名的第一个元素
+        # 假设列名可迭代并且第一个元素可以被索引到
+        extract_first_elem = np.vectorize(lambda x: x[0])
+
+        # 提取所有列名中的第一个元素
+        first_elements = extract_first_elem(p_col)
+
+        # 在 first_elements 中查找等于 0 的索引位置
+        indices = np.where(first_elements == 0)
+
+        # 根据索引拿到对应的列名，转换为列表
+        target_columns = p_col[indices].tolist()
+
+        # 获取这些目标列的数据并转换为 NumPy 数组
+        data_array = np.array(self.inter_df.loc[:, target_columns].to_numpy().tolist())
+
+        # 计算与点 [100, 100] 的欧几里得距离（按行计算）
+        distances = np.linalg.norm(data_array - np.array([100, 100]), axis=-1)
+
+        # 获取距离最小值在展平后的索引位置
+        flat_min_index = np.nanargmin(distances)
+
+        # 将展平索引转换为 (行, 列) 的二维索引
+        min_row_idx, min_col_idx = np.unravel_index(flat_min_index, distances.shape)
+
+        # 获取对应的行索引和列名
+        row_index = self.inter_df.index[min_row_idx]
+        col_name = target_columns[min_col_idx]
+
+        s_i = np.where(self.sorted_df.loc[:, col_name].apply(lambda x: row_index in x if isinstance(x, list) else False))
+        print(f'start:{col_name,s_i[0][0]}')
+        # 返回最小值对应的 (行索引, 列名称)
+        return col_name,int(s_i[0][0])
+
+
+    def walk_in_line(self,loc:list[tuple[int, int] | int]):
+        """
+        loc的形式: [line_id,index(在sorted_df中的index)]
+        """
+        self._vector_map_pd()
+        id_tup,index =loc
+        # 定义要筛选的列表
+        my_list: list = self.sorted_df.loc[index,id_tup]
+        print('my_list',my_list)
+        o_n = self.sorted_df.loc[[index+1,index-1],id_tup].tolist()
+        # mr = self.map_pd.xs(id_tup[0], level='origin_id').index.get_level_values('mirror_id')[0]
+        # print(mr)
+        # next_way = {id_tup[0]:o_n[0]+[id_tup],mr:o_n[0]+[id_tup]}
+        next_way = {id_tup: o_n}
+        print('o_nex_all',next_way)
+        for i in my_list:
+            print('开始查找',i)
+            s_i=np.where(self.sorted_df.loc[:,i].dropna().apply(lambda x:id_tup in x))[0][0]
+            #TODO 这里要判断s_i是否=0 不然会超出范围
+            next_walk = self.sorted_df.loc[[s_i+1,s_i-1],i].to_list() #有时候因为没有生成新的 出现nan值
+            next_way[i]= next_walk
+            # mr = self.map_pd.xs(i[0], level='origin_id').index.get_level_values('mirror_id')[0]
+            # next_way[mr] = next_walk[1]+[i]
+        print('next_way:',next_way)
 
     def splice_tilling(self, interaction_point_location, spliced_inter=()):
         """
@@ -502,13 +574,13 @@ if __name__ == "__main__":
 
     a.create_gird(sides=5,max_num_of_line=20,shifted_distance=0)
     a.get_girds_interaction()
-    a.create_gird(sides=5, max_num_of_line=40, shifted_distance=0)
+    a.create_gird(sides=5, max_num_of_line=100, shifted_distance=0)
     a.get_girds_interaction(rebuild=False)
     pd_print(a.inter_df)
-
     a._sort_girds_interaction()
-    pd_print(a.inter_sorted_df,max_length=1000)
-
+    a.get_start_p()
+    pd_print(a.sorted_df, max_length=1000)
+    a.walk_in_line([(0, -5),15])
     # print(a.inter_df.at[(2, 0), (4, 0)])
     # print(a.inter_df.at[(2, 0), (3, 0)])
     # print(a.inter_df.at[(2, 0), (1, 0)])
