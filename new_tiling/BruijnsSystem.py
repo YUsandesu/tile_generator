@@ -83,10 +83,14 @@ class BruijnsSystem:
             d_vector = line_dict['direction_vector']
             return np.sign(d_vector[0]),np.sign(d_vector[1])
         inter_data = self.inter_df
-        deep=len(inter_data)
         lines_index = inter_data.index
         inter_dict = inter_data.to_dict(orient='list')  # 把nan换成二维的[nan,nan]
         walk_dict = {}
+
+        data_col = self.data_df.columns
+        line_list = data_col[data_col.get_loc(0):]  # line的id列表
+        min_deep:int = len(inter_data)-len(line_list)
+
         for line_id,inter_list in inter_dict.items():
             arr = np.array(inter_list)
             s_x,s_y=get_direction(line_id)
@@ -120,7 +124,7 @@ class BruijnsSystem:
                 [lines_index[i]] if i not in same_id_dict
                 else [lines_index[e] for e in same_id_dict[i]]
                 for i in indices
-            ] + [None]* (deep-len(indices)) #防止长度不一致.
+            ] + [np.nan]* (min_deep-len(indices)) #防止长度不一致.
 
         self.inter_sorted_df = pd.DataFrame(walk_dict)
 
@@ -463,10 +467,12 @@ def deep_get_size(obj, seen=None):
 if __name__ == "__main__":
     a=BruijnsSystem()
 
-    a.create_gird(sides=5,max_num_of_line=200,shifted_distance=0)
-    pd_print(a.data_df,max_length=1000)
-
+    a.create_gird(sides=5,max_num_of_line=20,shifted_distance=0)
     a.get_girds_interaction()
+    a.create_gird(sides=5, max_num_of_line=300, shifted_distance=0)
+    a.get_girds_interaction(rebuild=True)
+    pd_print(a.inter_df)
+
     pd_print(a.inter_df)
 
     a._sort_girds_interaction()
