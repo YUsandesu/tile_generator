@@ -1,7 +1,9 @@
+# -*- coding: utf-8 -*-
 import random
 import sys
 import time
 
+from bokeh.util.logconfig import level
 from streamlit import columns
 
 from new_tiling.PY5_2DToolkit import Tools2D
@@ -83,7 +85,7 @@ class BruijnsSystem:
         _map_df = pd.DataFrame()
         the_origin_vectors = self.data_df['origin_vector'].to_dict()
         sides = len(the_origin_vectors)
-
+        pd_print(self.data_df,max_length=100)
         info_zip: list = []  # clock_id,origin_id,mirror_id,vector
         if sides % 2 != 0:  # 奇数
             mirror_vector = np.array(list(the_origin_vectors.values()))
@@ -96,8 +98,7 @@ class BruijnsSystem:
                 # 索引镜像：列表长度为10，原索引 i 镜像到 (i + 镜像间隔:sides) % 总等分数:sides * 2
                 # 例如: 0, 2, 4, 6, 8 分别镜像到: 5, 7, 9, 1, 3
                 # 值: 1, 2, 3, 4, 5 分别变为: -1, -2, -3, -4, -5
-                info_zip.append(
-                    [index * 2, index, index + sides, the_vector])
+                info_zip.append([index * 2, index, index + sides, the_vector])
                 info_zip.append([(index * 2 + sides) % (sides * 2), index + 5, index, mirror_vector[index]])
             _map_df = pd.DataFrame(info_zip, columns=['clock_id', 'origin_id', 'mirror_id', 'vector'])
             _map_df.set_index(['clock_id', 'origin_id', 'mirror_id'], inplace=True)
@@ -262,6 +263,7 @@ class BruijnsSystem:
             self.data_df = pd.DataFrame()
             self.data_df['origin_vector'] = vectors_origin
             self.data_df['gap'] = gap
+            self.data_df['directed_vector'] = vectors_origin_pen
             self.data_df.loc[:, 0] = origin_directed_lines_list  # 创建origin_d_line
             start_num = 1
 
@@ -286,6 +288,7 @@ class Tilling_Create:
         self.inter_df = inter_df
         self.map_df = map_df
         self._sorted_df_data = pd.DataFrame()
+        self.searched = []
     @property
     def _sorted_df(self):
         """
@@ -321,8 +324,9 @@ class Tilling_Create:
             tuple: 一个包含方向向量 x 和 y 分量符号（sx, sy）的元组。
             """
             vector_id = l_id[0]
-            d_vector = self.map_df.xs(vector_id, level='origin_id')['vector'].tolist()[0]
-            return np.sign(-d_vector[0]), np.sign(-d_vector[1]) #因为origin_vector 和实际的相差90度
+            o_v = self.map_df.xs(vector_id, level='origin_id')['vector'].tolist()[0]
+            d_vector = tools.vector_rotate(o_v,90) #TODO 这里不能这么算 应该拓展map_df 直接获取
+            return np.sign(d_vector[0]), np.sign(d_vector[1])
 
         if not self._sorted_df_data.empty:
             return self._sorted_df_data
@@ -369,7 +373,7 @@ class Tilling_Create:
         return self._sorted_df_data
 
     @property
-    def _start_point_sorted_type(self) -> tuple[tuple, int]:
+    def _center_point(self)->tuple:
         """
         函数功能:
             从 self.inter_df 中筛选出列名第一个元素为 0 的列，
@@ -377,7 +381,7 @@ class Tilling_Create:
             最后返回距离最小值对应的 (行索引, 列名称)。
 
         返回:
-            (row_index, column_name) -> tuple[tuple,tuple]
+            (row_index, column_name)
         """
 
         # 将所有列名转换为 NumPy 数组
@@ -416,7 +420,7 @@ class Tilling_Create:
             self._sorted_df.loc[:, col_name].apply(lambda x: row_index in x if isinstance(x, list) else False))
 
         # 返回最小值对应的 (行索引, 列名称)
-        return col_name, int(s_i[0][0])
+        return int(s_i[0][0]),col_name
 
     def _get_tilling_shape(self, vectors_id_list):
         """
@@ -434,43 +438,91 @@ class Tilling_Create:
                   其中segment。是一个[x, y]坐标的列表
         """
         enable_map = self.map_df[(self.map_df.index.get_level_values('origin_id').isin(vectors_id_list)) | (
-            self.map_df.index.get_level_values('mirror_id').isin(vectors_id_list))]
+            self.map_df.index.get_level_values('mirror_id').isin(vectors_id_list))] #一个布尔or操作,找到所有符合要求的信息
         enable_vectors = enable_map['vector'].tolist()
         enable_id = enable_map.index.get_level_values('origin_id').tolist()
         # enable_vectors只是移动的路径,需要绘制成坐标点
         cumulative_sum = np.cumsum(np.array(enable_vectors), axis=0)
         tilling = Tools2D.reduce_errors_np(cumulative_sum, max_value=False).tolist()  # 防止出现无穷小数
-        return {enable_id[t]: i for t, i in enumerate(tilling)}
-    def _get 
-    def get_future_(self, loc: list[tuple[int, int] | int]):
+        return {enable_id[_t]: [tilling[_t-1],tilling[_t]] for _t in range(len(tilling))}
+
+    @staticmethod
+    def _line_tups_to_vectors_id (line_tups):
+        #line_tup: (o_v,line_num))
+        return [i[0] for i in line_tups]
+
+    def _loc_to_tilling_shape(self, loc):
+        index, id_tup = loc
+        inter_info = self._sorted_df.loc[index, id_tup] + [id_tup] #得带上id_tup自己
+        vectors_list = self._line_tups_to_vectors_id(inter_info)
+        return self._get_tilling_shape(vectors_list)
+
+    def _next_loc_list(self, loc):
         """
-        loc的形式: [line_id,index(在sorted_df中的index)]
+        loc的形式: [index(在sorted_df中的index),line_id]
         查询当前点的其他分支
-        返回一组新的loc
-                 col:           方向                  方向
-        id:positive     [[tup_id,index],...]         []
-           negative     [[tup_id,index],[]]          []
+        返回一个字典: {}
         """
-        self.map_df()
-        id_tup, index = loc
-        # 定义要筛选的列表
-        my_list: list = self._sorted_df_data.loc[index, id_tup]
-        print('my_list', my_list)
-        o_n = self._sorted_df_data.loc[[index + 1, index - 1], id_tup].tolist()
-        # mr = self.map_df.xs(id_tup[0], level='origin_id').index.get_level_values('mirror_id')[0]
-        # print(mr)
-        # next_way = {id_tup[0]:o_n[0]+[id_tup],mr:o_n[0]+[id_tup]}
-        next_way = {id_tup: o_n}
-        print('o_nex_all', next_way)
-        for i in my_list:
-            print('开始查找', i)
-            s_i = np.where(self._sorted_df_data.loc[:, i].dropna().apply(lambda x: id_tup in x))[0][0]
-            # TODO 这里要判断s_i是否=0 不然会超出范围
-            next_walk = self._sorted_df_data.loc[[s_i + 1, s_i - 1], i].to_list()  # 有时候因为没有生成新的 出现nan值
-            next_way[i] = next_walk
-            # mr = self.map_df.xs(i[0], level='origin_id').index.get_level_values('mirror_id')[0]
-            # next_way[mr] = next_walk[1]+[i]
-        print('next_way:', next_way)
+        index,id_tup = loc
+        loc_inter_info = self._sorted_df.loc[index, id_tup] #到sorted_df中取出数据:[[next_inter],[next_inter],..]
+        next_data = [ [[index + 1, id_tup], id_tup[0]], [[index - 1, id_tup], self.origin_to_mirror(id_tup[0])] ]
+        for i in loc_inter_info:
+            s_id = np.where(self._sorted_df_data.loc[:, i].dropna().apply(lambda x: id_tup in x))[0][0] #到别的col里面找:存在当前id_tup的-->index # TODO 这里有可能会超出范围
+            #这里要判断s_id+1 和 s_id-1 是否是nan,如果是应该跳过.
+            direction_posit = i[0]
+            next_data.append([ [s_id+1,i],direction_posit ])
+            next_data.append([ [s_id-1,i],self.origin_to_mirror(direction_posit) ])
+        return next_data #[ [[loc],direction],[[loc],direction],[[loc],..],... ]
+
+    def origin_to_mirror (self, o_id):
+        return self.map_df.xs(o_id,level='origin_id').index.get_level_values('mirror_id').tolist()[0]
+    def mirror_to_origin (self,m_id):
+        return self.map_df.xs(m_id, level='mirror_id').index.get_level_values('origin_id').tolist()[0]
+
+    def unique_tilling(self,loc):
+        #loc: (index,(o_v,num))
+        origin_shape = self._loc_to_tilling_shape(loc)
+        next_data = self._next_loc_list(loc)
+        origin_v, _ = loc[1]
+        r = []
+        r_dict = {}
+        for next_loc,direction in next_data:
+            back = self.splice_tilling(origin_shape,self._loc_to_tilling_shape(next_loc),direction)
+            self.searched.append (next_loc) #TODO 需要完善
+            r.append(list(back.values()))
+            r_dict[tuple(next_loc)] = back
+
+        r=np.array(r)
+        r=r.reshape(-1,2,2) #TODO 此处节省时间写的,需要完善
+        return r.tolist()
+
+    def WFS(self,deep):
+        loc = self._center_point
+        loc_queue = [i[0] for i in self._next_loc_list(loc)]
+        for next_loc in loc_queue:
+            return
+
+
+
+    def splice_tilling(self,a_tilling,b_tilling,direction):
+        #direction: origin_vector 代表a与b重合的位置(从a的角度),例:a的1和b的6重合-->direction=1
+        #================main===============
+
+        # 因为两次直线方向相反,所以第一个取[0],第二个取[1]
+        b_same = b_tilling[self.mirror_to_origin(direction)][0]
+        o_same = a_tilling[direction][1]
+
+        shift_v =  [o_same[0]-b_same[0],o_same[1]-b_same[1]]
+        b_tilling = {k:tools.point_shift(v,shift_v)for k,v in b_tilling.items()}
+
+        return b_tilling
+
+
+
+
+
+
+
 
 
 def pd_print(df: pd.DataFrame, max_length=20, multi_index=False):
@@ -535,7 +587,10 @@ def deep_get_size(obj, seen=None):
 
 if __name__ == "__main__":
     a = BruijnsSystem(sides=5, max_num_of_line=20, shifted_distance=0)
-    a(sides=5, max_num_of_line=200, shifted_distance=30,gap=30)
-    # pd_print(a.interaction_df)
-    pd_print(a.tilling._sorted_df, max_length=13)
-    print(a.tilling._start_point_sorted_type)
+    a(sides=5, max_num_of_line=200, shifted_distance=30,gap=12)
+    t= a.tilling
+    p = t._center_point
+    f_d = t._next_loc_list(p)
+    # print('next_data:',f_d)
+    # print('next_data[0]_tilling_shape',t._one_next_data_to_tilling_shapes(f_d[0]))
+    print(t.unique_tilling(t._center_point))
