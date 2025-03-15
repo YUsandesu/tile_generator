@@ -307,6 +307,7 @@ class Tilling_Create:
                     - `[line_index]`: 单条线在此点相交。
                     - `[line_index_1, line_index_2, ...]`: 多条线在此点相交。
         """
+
         def get_direction(l_id: tuple) -> tuple:
             """
             根据direction_vector来确定直线走向。
@@ -330,6 +331,9 @@ class Tilling_Create:
 
         if not self._sorted_df_data.empty:
             return self._sorted_df_data
+
+        print('start-sorted')
+        #TODO 目前5000的级别就无法sorted了.
 
         inter_data = self.inter_df
         lines_index = inter_data.index
@@ -370,6 +374,7 @@ class Tilling_Create:
                                  ] + [np.nan] * (len(lines_index) - len(indices))  # 防止长度不一致.
 
         self._sorted_df_data = pd.DataFrame(walk_dict).dropna(how='all')
+        print('sorted-finish')
         return self._sorted_df_data
 
     @property
@@ -479,29 +484,39 @@ class Tilling_Create:
     def mirror_to_origin (self,m_id):
         return self.map_df.xs(m_id, level='mirror_id').index.get_level_values('origin_id').tolist()[0]
 
-    def unique_tilling(self,loc):
+    def unique_tilling(self,loc,origin_shape=None):
         #loc: (index,(o_v,num))
-        origin_shape = self._loc_to_tilling_shape(loc)
+
+        if origin_shape is None:
+            origin_shape = self._loc_to_tilling_shape(loc)
+
         next_data = self._next_loc_list(loc)
-        origin_v, _ = loc[1]
-        r = []
-        r_dict = {}
+        r_dict = {tuple(loc):origin_shape}
         for next_loc,direction in next_data:
             back = self.splice_tilling(origin_shape,self._loc_to_tilling_shape(next_loc),direction)
             self.searched.append (next_loc) #TODO 需要完善
-            r.append(list(back.values()))
             r_dict[tuple(next_loc)] = back
+        return r_dict
 
-        r=np.array(r)
-        r=r.reshape(-1,2,2) #TODO 此处节省时间写的,需要完善
-        return r.tolist()
-
-    def WFS(self,deep):
+    def WFS(self, deep:int=100):
         loc = self._center_point
-        loc_queue = [i[0] for i in self._next_loc_list(loc)]
-        for next_loc in loc_queue:
-            return
-
+        data = self.unique_tilling(loc)
+        loc_queue = list(data.keys())
+        loc_queue.remove(loc)
+        while loc_queue:
+            if deep == 0: break
+            next_loc = loc_queue.pop(0)
+            r = self.unique_tilling(next_loc, data[next_loc])
+            data.update(r)
+            loc_queue = loc_queue + list(r.keys())
+            loc_queue.remove(next_loc)
+            deep -= 1
+        seg_data = []
+        print('WFS-search-finish')
+        for i in list(data.values()):
+            seg = list(i.values())
+            seg_data.extend(seg)
+        return seg_data
 
 
     def splice_tilling(self,a_tilling,b_tilling,direction):
@@ -593,4 +608,4 @@ if __name__ == "__main__":
     f_d = t._next_loc_list(p)
     # print('next_data:',f_d)
     # print('next_data[0]_tilling_shape',t._one_next_data_to_tilling_shapes(f_d[0]))
-    print(t.unique_tilling(t._center_point))
+    print(t.WFS())
