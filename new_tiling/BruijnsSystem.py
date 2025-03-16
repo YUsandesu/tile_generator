@@ -2,10 +2,8 @@
 import random
 import sys
 import time
-
-from bokeh.util.logconfig import level
-from streamlit import columns
-
+import multiprocessing
+import gc
 from new_tiling.PY5_2DToolkit import Tools2D
 import numpy as np
 import pandas as pd
@@ -13,7 +11,7 @@ import warnings
 from itertools import islice, product
 from tabulate import tabulate
 import humanize
-
+from joblib import Parallel, delayed
 tools = Tools2D()
 
 
@@ -130,15 +128,21 @@ class BruijnsSystem:
             第一级索引表示 'gird' 的索引，第二级索引表示该层gird中有向直线的编号(line_num)。
             值表示交点坐标[float,float]。可以通过.loc[(index,num),(index,num)]查询任意两条线的交点
         """
+        i_t = time.time()
+
         df_col = self.data_df.columns
         d_col = df_col[df_col.get_loc(0):]  # line的id列表
+        t_i = time.time()
 
+        print('data_loading')
         # 生成当前所有线段标识符（index, num）
         col = list(product(range(len(self.data_df)), d_col))
         # 获取对应的线段数据
         lines_np = self.data_df.loc[:, d_col].to_numpy().flatten()
         lines = lines_np.tolist()
+        print('loading_use:',time.time()-t_i)
 
+        print('start_interaction')
         if self._inter_df.empty:
             inter_inf = np.around(tools.inter_line_group_np(lines_a=lines, lines_b=lines), 10)
             self._inter_df = pd.DataFrame(inter_inf.tolist(), columns=col, index=col)
@@ -174,11 +178,12 @@ class BruijnsSystem:
                 tar_i = set(last_col) - set(col)
                 tar_i = list(tar_i)
                 self._inter_df.drop(index=tar_i, columns=tar_i, inplace=True)
-
+        print('interaction_finish',time.time()-i_t)
         return self._inter_df
 
     @property
     def tilling(self):
+        print('BS:start_load_tilling')
         if self.tilling_object:
             return self.tilling_object
         return Tilling_Create(map_df=self.map_df, inter_df=self.interaction_df)
@@ -273,7 +278,7 @@ class BruijnsSystem:
         self.data_df = self.data_df.reindex(columns=list(self.data_df.columns) + target_list, fill_value={})  # noqa
         # =============================== main ===============================
         # 平移gird_0，构建平行网格gird
-        for index, line_dict in self.data_df.loc[:, 0].to_dict().items():  # 遍历原始gird每一条线
+        for index, line_dict in self.data_df.loc[:, 0].items():  # 遍历原始gird每一条线
             for i in target_list:
                 o_v = self.data_df['origin_vector'][index]
                 shift_distance = gap[index] * i
@@ -288,6 +293,52 @@ class Tilling_Create:
         self.inter_df = inter_df
         self.map_df = map_df
         self.sorted_df = self._sorted_df()
+
+    @staticmethod
+    def sort(input_df, direction_dic):
+        the_dict = {}
+        df_index = input_df.index
+        for line_id, inter_list in input_df.items():
+            # print(inter_list)
+            arr = np.array(inter_list.tolist())
+            queue_p, indices, counts = np.unique(arr, axis=0, return_index=True, return_counts=True)
+            # queue_p: 排序后的队列 (去重, 默认以 [x,y] 中的 x 排序, 如果相同, 以 y 排序)
+            # indices: queue_p 中元素在原数组 arr 中的序号
+            # counts: 每个元素在 arr 中出现的次数
+            # 获取没有nan的序号
+            valid_mask = np.where(~np.isnan(queue_p).any(axis=1))
+
+            # 同时过滤三个数组
+            queue_p = queue_p[valid_mask]  # 过滤后的唯一值坐标
+            indices = indices[valid_mask]  # 过滤后的首次出现索引
+            counts = counts[valid_mask]  # 过滤后的计数 (形状与queue_p一致)
+
+            same_v = queue_p[counts > 1]  # 取具有重复的点[x,y]
+            same_id = indices[counts > 1]  # 重复点的index
+
+            if not direction_dic[line_id[0]]:
+                # 需要倒序
+                indices = indices[::-1]
+
+            # [same_index: line值的index序号] 将来要把这个index值全部替换成line的index序号
+            same_id_map = {
+                s_id: np.where((arr == s_v).all(axis=1))[0].tolist() for s_id, s_v in zip(same_id, same_v)
+            }
+            indices = indices.tolist()
+
+            for t_, i in enumerate(indices):
+                if i in same_id_map:
+                    indices[t_] = same_id_map.pop(i)
+                    continue
+                indices[t_] = [i]
+
+            r = [[df_index[_id] for _id in i_list] for i_list in indices]
+
+            r = list(r) + [np.NAN] * (len(df_index) - len(r))
+
+            the_dict[line_id] = r
+
+        return the_dict
 
 
     def _sorted_df(self):
@@ -308,7 +359,7 @@ class Tilling_Create:
                     - `[line_index_1, line_index_2, ...]`: 多条线在此点相交。
         """
 
-        def get_direction(l_id: tuple) -> tuple:
+        def get_direction_map() -> dict:
             """
             根据direction_vector来确定直线走向。
             定义如下：
@@ -324,53 +375,33 @@ class Tilling_Create:
             返回:
             tuple: 一个包含方向向量 x 和 y 分量符号（sx, sy）的元组。
             """
-            vector_id = l_id[0]
-            o_v = self.map_df.xs(vector_id, level='origin_id')['vector'].tolist()[0]
-            d_vector = tools.vector_rotate(o_v,90) #TODO 这里不能这么算 应该拓展map_df 直接获取
-            return np.sign(d_vector[0]), np.sign(d_vector[1])
+            tar = self.map_df.loc[:,'vector']
+            r_d = {}
+            for i_,v in tar.items():
+                d_vector = tools.vector_rotate(v, 90)  # TODO 这里不能这么算 应该拓展map_df 直接获取
+                s_x ,s_y = np.sign(d_vector[0]), np.sign(d_vector[1])
+                if s_x < 0 or (s_x == 0 and s_y < 0):
+                    r_d[i_[0]] = False
+                    continue
+                r_d[i_[0]] = True
+            return r_d
 
-        print('start-sorted')
-        #TODO 目前5000的级别就无法sorted了.
+        d_map = get_direction_map()
+        num = 2
+        print('start-cut')
+        df_chunks = np.array_split(self.inter_df, num, axis=1)
+        print('cut_finish')
 
-        inter_data = self.inter_df
-        lines_index = inter_data.index
-        inter_dict = inter_data.to_dict(orient='list')  # 这里可以加.apply(map)把nan换成二维的[nan,nan]
+        # 使用 joblib.Parallel 并行调用 sort 方法
+        results = Parallel(n_jobs=num)(
+            delayed(self.sort)(chunk, d_map) for chunk in df_chunks
+        ) #backend="threading"
+        print('return:', results)
+
+        # 合并各个分块返回的字典结果
         walk_dict = {}
-        print('trans-dict-finish')
-        for line_id, inter_list in inter_dict.items():
-            print(line_id)
-            arr = np.array(inter_list)
-            s_x, s_y = get_direction(line_id)
-            queue_p, indices, counts = np.unique(arr, axis=0, return_index=True, return_counts=True)
-            # queue_p: 排序后的队列 (去重, 默认以 [x,y] 中的 x 排序, 如果相同, 以 y 排序)
-            # indices: queue_p 中元素在原数组 arr 中的序号
-            # counts: 每个元素在 arr 中出现的次数
-            # 获取没有nan的序号
-            valid_mask = np.where(~np.isnan(queue_p).any(axis=1))
-
-            # 同时过滤三个数组
-            queue_p = queue_p[valid_mask]  # 过滤后的唯一值坐标
-            indices = indices[valid_mask]  # 过滤后的首次出现索引
-            counts = counts[valid_mask]  # 过滤后的计数 (形状与queue_p一致)
-
-            same_v = queue_p[counts > 1]  # 取具有重复的点[x,y]
-            same_id = indices[counts > 1]  # 重复点的id
-
-            same_id_dict = {
-                s_id: np.where((arr == s_v).all(axis=1))[0]  # {same_id: line值的index序号}
-                for s_id, s_v in zip(same_id, same_v)
-            }
-
-            if s_x < 0 or (s_x == 0 and s_y < 0):
-                # 这两种情况需要取倒序
-                indices = indices[::-1]
-
-            walk_dict[line_id] = [
-                                     [lines_index[i]] if i not in same_id_dict
-                                     else [lines_index[e] for e in same_id_dict[i]]
-                                     for i in indices
-                                 ] + [np.nan] * (len(lines_index) - len(indices))  # 防止长度不一致.
-
+        for i in results:
+            walk_dict = walk_dict | i
         return pd.DataFrame(walk_dict).dropna(how='all')
 
 
@@ -666,7 +697,7 @@ def deep_get_size(obj, seen=None):
 
 if __name__ == "__main__":
     a = BruijnsSystem(sides=5, max_num_of_line=20, shifted_distance=0)
-    a(sides=5, max_num_of_line=200, shifted_distance=30,gap=12)
+    a(sides=5, max_num_of_line=5000, shifted_distance=0,gap=12)
     t= a.tilling
     p = t._center_point
     n_d,f_d = t._next_loc_list(p)
