@@ -445,7 +445,7 @@ class Tools2D:
         rotated_vector = vector_group @ rotation_matrix.T  # 旋转向量
 
         # 处理接近0的浮点数
-        rotated_vector = Tools2D.reduce_errors_np(rotated_vector,max_value=None)
+        rotated_vector = Tools2D.reduce_errors_np(rotated_vector, max_value=None)
 
         return rotated_vector
 
@@ -479,7 +479,6 @@ class Tools2D:
             back_np = np.where(np.abs(nums) < min_value, 0, back_np)
         if max_value:
             back_np = np.where(np.abs(nums) > max_value, np.nan, back_np)
-
         return back_np
 
     @staticmethod
@@ -681,6 +680,9 @@ class Tools2D:
             # 当前点已经存在 直接使用"
             Bletter = B_info['letter']
         # 判断提供的点是否创建 如果没有创建就提前创建
+        # print("#" * 10)
+        # print(A_info, B_info) # ??? too many
+        # print("#" * 10)
         inf = {}
         inf["floor"] = floor
         inf["color"] = color
@@ -927,7 +929,7 @@ class Tools2D:
         if isinstance(line_letter_or_detail_dic, dict):
             detail_dic = line_letter_or_detail_dic
         else:
-            if line_letter_or_detail_dic not in self.line_dic:
+            if line_letter_or_detail_dic not in self.line_dic: # ??? what is self.line_dic
                 raise ValueError("没有找到直线，直线还未创建")
             detail_dic = self.line_dic[line_letter_or_detail_dic]
 
@@ -2030,13 +2032,22 @@ class Screen_draw:
         lx, ly = line_detail_dict['location_point']
         vx, vy = line_detail_dict['direction_vector']
 
+        print(line_detail_dict)
         line_detail = self.tools.directed_line_to_line(line_detail_dict, temp=True)
+        print("x" * 10)
+        print(line_detail)
+        print("x" * 10)
         segment_line = self.tools.line_to_Segmentline(line_detail, x_range=x_range, y_range=y_range)
-
+        print("!" * 10)
+        print(segment_line)
+        print("!" * 10)
         if not segment_line:
             return False
 
         segment_line_locations = self.tools.Segmentline_get_info(segment_line)['location']
+        print("@" * 10)
+        print(segment_line_locations)
+        print("@" * 10)
         self.tools.Segmentline_remove_by_chain(segment_line)
 
         A_point, B_point = segment_line_locations
@@ -2175,12 +2186,13 @@ class Screen_draw:
     def screen_draw_directed_line(self, directed_line_dict_or_list, color=create_32bit_color(10, 10, 0, 255),
                                   stroke_weight=3):
         self.tools.reset()
-        skip_times = 0
-        if isinstance(directed_line_dict_or_list, dict):
+        skip_times = 0 # ???
+        if isinstance(directed_line_dict_or_list, dict): # ???
             lines = list(directed_line_dict_or_list.values())
         else:
             lines = directed_line_dict_or_list
 
+        # print(len(lines))
         for line in lines:
             if not self.draw_directed_line(line, color=color, stroke_weight=stroke_weight):
                 skip_times += 1
