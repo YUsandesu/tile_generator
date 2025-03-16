@@ -287,9 +287,9 @@ class Tilling_Create:
     def __init__(self, map_df, inter_df):
         self.inter_df = inter_df
         self.map_df = map_df
-        self._sorted_df_data = pd.DataFrame()
-        self.searched = []
-    @property
+        self.sorted_df = self._sorted_df()
+
+
     def _sorted_df(self):
         """
         Bruijns 系统中基于交点建立网格线邻接关系的关键预处理步骤。
@@ -329,9 +329,6 @@ class Tilling_Create:
             d_vector = tools.vector_rotate(o_v,90) #TODO 这里不能这么算 应该拓展map_df 直接获取
             return np.sign(d_vector[0]), np.sign(d_vector[1])
 
-        if not self._sorted_df_data.empty:
-            return self._sorted_df_data
-
         print('start-sorted')
         #TODO 目前5000的级别就无法sorted了.
 
@@ -339,8 +336,9 @@ class Tilling_Create:
         lines_index = inter_data.index
         inter_dict = inter_data.to_dict(orient='list')  # 这里可以加.apply(map)把nan换成二维的[nan,nan]
         walk_dict = {}
-
+        print('trans-dict-finish')
         for line_id, inter_list in inter_dict.items():
+            print(line_id)
             arr = np.array(inter_list)
             s_x, s_y = get_direction(line_id)
             queue_p, indices, counts = np.unique(arr, axis=0, return_index=True, return_counts=True)
@@ -373,9 +371,8 @@ class Tilling_Create:
                                      for i in indices
                                  ] + [np.nan] * (len(lines_index) - len(indices))  # 防止长度不一致.
 
-        self._sorted_df_data = pd.DataFrame(walk_dict).dropna(how='all')
-        print('sorted-finish')
-        return self._sorted_df_data
+        return pd.DataFrame(walk_dict).dropna(how='all')
+
 
     @property
     def _center_point(self)->tuple:
@@ -422,7 +419,7 @@ class Tilling_Create:
         col_name = target_columns[min_col_idx]
 
         s_i = np.where(
-            self._sorted_df.loc[:, col_name].apply(lambda x: row_index in x if isinstance(x, list) else False))
+            self.sorted_df.loc[:, col_name].apply(lambda x: row_index in x if isinstance(x, list) else False))
 
         # 返回最小值对应的 (行索引, 列名称)
         return int(s_i[0][0]),col_name
@@ -458,66 +455,133 @@ class Tilling_Create:
 
     def _loc_to_tilling_shape(self, loc):
         index, id_tup = loc
-        inter_info = self._sorted_df.loc[index, id_tup] + [id_tup] #得带上id_tup自己
+        inter_info = self.sorted_df.loc[index, id_tup] + [id_tup] #得带上id_tup自己 #TODO 会超出范围
         vectors_list = self._line_tups_to_vectors_id(inter_info)
         return self._get_tilling_shape(vectors_list)
 
-    def _next_loc_list(self, loc):
+    def _next_loc_list(self, loc)->tuple[list[tuple],list[tuple]]:
         """
-        loc的形式: [index(在sorted_df中的index),line_id]
-        查询当前点的其他分支
-        返回一个字典: {}
+        获取当前坐标位置的所有相关位置及其方向。
+
+        参数:
+        loc (list): 当前坐标的位置。形式为 [index, (origin_id, line_num)]，其中:
+            - index: 在 `sorted_df` 中的 index
+            - (origin_id, line_num): 在 `sorted_df` 中的 column
+
+        返回:
+        tuple: 包含两个元素:
+            1. now_loc (list): 当前坐标和所有等价坐标的列表，每个坐标为 [index, (row, col)] 的形式。
+            2. next_positions (list): 与等价坐标相关的方向信息，格式为 [[loc, direction], [loc, direction], ...]，
+               其中 direction 将来拼接时的接口数据。
         """
         index,id_tup = loc
-        loc_inter_info = self._sorted_df.loc[index, id_tup] #到sorted_df中取出数据:[[next_inter],[next_inter],..]
-        next_data = [ [[index + 1, id_tup], id_tup[0]], [[index - 1, id_tup], self.origin_to_mirror(id_tup[0])] ]
-        for i in loc_inter_info:
-            s_id = np.where(self._sorted_df_data.loc[:, i].dropna().apply(lambda x: id_tup in x))[0][0] #到别的col里面找:存在当前id_tup的-->index # TODO 这里有可能会超出范围
+        now_loc = [ tuple(loc) ]
+        next_:list[tuple] = [ ((index + 1, id_tup), id_tup[0]), ((index - 1, id_tup), self.origin_to_mirror(id_tup[0])) ]
+        equal_loc: list[tuple] = self.loc_map(loc)
+
+        for loc in equal_loc:
+            s_id,colum = loc
             #这里要判断s_id+1 和 s_id-1 是否是nan,如果是应该跳过.
-            direction_posit = i[0]
-            next_data.append([ [s_id+1,i],direction_posit ])
-            next_data.append([ [s_id-1,i],self.origin_to_mirror(direction_posit) ])
-        return next_data #[ [[loc],direction],[[loc],direction],[[loc],..],... ]
+            direction_posit,_ = colum #(o_vector,line_num)
+            next_.append(((s_id+1,colum),direction_posit ))
+            next_.append(( (s_id-1,colum),self.origin_to_mirror(direction_posit) ))
+
+        return equal_loc + now_loc, next_  # [ [[loc],direction],[[loc],direction],[[loc],..],... ]
 
     def origin_to_mirror (self, o_id):
         return self.map_df.xs(o_id,level='origin_id').index.get_level_values('mirror_id').tolist()[0]
+
     def mirror_to_origin (self,m_id):
         return self.map_df.xs(m_id, level='mirror_id').index.get_level_values('origin_id').tolist()[0]
 
-    def unique_tilling(self,loc,origin_shape=None):
+    def unique_tilling(self,loc,origin_shape=None)->tuple[list[tuple],dict]:
         #loc: (index,(o_v,num))
-
         if origin_shape is None:
             origin_shape = self._loc_to_tilling_shape(loc)
-
-        next_data = self._next_loc_list(loc)
+        now_loc,next_data = self._next_loc_list(loc)
         r_dict = {tuple(loc):origin_shape}
         for next_loc,direction in next_data:
             back = self.splice_tilling(origin_shape,self._loc_to_tilling_shape(next_loc),direction)
-            self.searched.append (next_loc) #TODO 需要完善
             r_dict[tuple(next_loc)] = back
-        return r_dict
+        return now_loc,r_dict
+
+    def loc_map(self,loc)->list[tuple]|None:
+        """
+        查找与给定坐标等价的其他位置。
+
+        参数:
+        loc (list): 当前坐标。形式为 [index, (o_v_id, line_num)]，其中:
+            - index: 在 `sorted_df` 中的索引。
+            - (o_v_id, line_num): 一个包含两个整数的元组，表示该位置的 列索引
+
+        返回:
+        list | None: 返回一个列表，其中包含等价位置的索引和列的元组。格式为 [[index, (int, int)], ...]。
+                    如果没有找到等价点，则返回 `None`。
+
+        例：loc = [2, (1, 3)]
+        return：[[3, (2, 3)], [4, (3, 3)]]
+        """
+        r=[]
+        _index,line_tup = loc
+        other_col = self.sorted_df.loc[_index,line_tup]
+        # print(other_col)
+        for col in other_col:
+            bool_list = self.sorted_df.loc[:, col].dropna().apply(lambda x: line_tup in x).to_numpy()
+            if np.all(bool_list==False):
+                 continue
+            _index = np.where(bool_list)[0][0] #查找位置
+            r.append((_index,col))
+        if r:
+            return r
+        warnings.warn('没有找到等价点')
+        return None
 
     def WFS(self, deep:int=100):
-        loc = self._center_point
-        data = self.unique_tilling(loc)
+        loc = self._center_point #找到起点
+        print('=='*15)
+        print(f'开始:{loc}')
+        now_loc,data = self.unique_tilling(loc) #(当前点的所有名称,起点形状)
+
+        e_ = set()
+        for i in data.keys():
+            e_ = e_ | {e for e in self.loc_map(i)} | {i}
+        done = {i for i in now_loc} | e_
+        print(f'1st,done:{done}')
+        # 接下来的起点
         loc_queue = list(data.keys())
-        loc_queue.remove(loc)
+        loc_queue.remove(loc)  # 上次的起点不需要,删除掉
+
         while loc_queue:
             if deep == 0: break
-            next_loc = loc_queue.pop(0)
-            r = self.unique_tilling(next_loc, data[next_loc])
-            data.update(r)
-            loc_queue = loc_queue + list(r.keys())
-            loc_queue.remove(next_loc)
+            next_loc = loc_queue.pop(0) #下一个需要遍历的起点
+            print('当前loc:',next_loc)
+            now_loc,r = self.unique_tilling(next_loc, data[next_loc]) #获取 (所有名称,新形状)
+
+            del_tar = {i for i in r.keys()} & done
+            for i in del_tar:
+                print(f'del,{i}')
+                r.pop(i)
+            if not r:
+                print('all_del')
+                continue
+            print(f"剩余:{r.keys()}")
+            data.update(r)  # 更新data
+
+            e_ = set()#当前创建的所有点
+            for i in r.keys():
+                e_= e_|{e for e in self.loc_map(i)}|{i}
+            done = done | {i for i in now_loc} | e_
+            print(f'done:{done}')
+
+            loc_queue = loc_queue + list(r.keys())  # 加入到队列
             deep -= 1
+
         seg_data = []
         print('WFS-search-finish')
         for i in list(data.values()):
             seg = list(i.values())
             seg_data.extend(seg)
         return seg_data
-
 
     def splice_tilling(self,a_tilling,b_tilling,direction):
         #direction: origin_vector 代表a与b重合的位置(从a的角度),例:a的1和b的6重合-->direction=1
@@ -605,7 +669,8 @@ if __name__ == "__main__":
     a(sides=5, max_num_of_line=200, shifted_distance=30,gap=12)
     t= a.tilling
     p = t._center_point
-    f_d = t._next_loc_list(p)
+    n_d,f_d = t._next_loc_list(p)
     # print('next_data:',f_d)
     # print('next_data[0]_tilling_shape',t._one_next_data_to_tilling_shapes(f_d[0]))
-    print(t.WFS())
+    print(t.WFS(9))
+    print(t.WFS(10))
