@@ -1,6 +1,7 @@
 from the_control import *
 from PY5_2DToolkit import *
 from BruijnsSystem import BruijnsSystem
+import pandas as pd
 
 #max_num_of_line超过400条容易卡死
 def setup():
@@ -38,10 +39,15 @@ def draw():
     the_vector = bs.data_df.loc[:,'origin_vector'].tolist()
 
     sd.screen_draw_vector(the_vector,sd.screen_axis(-150,150))#画出原始向量
-
+    print("-" * 10)
+    print(the_lines_dict_list)
+    print("-" * 10)
     for times,line_dict in enumerate(the_lines_dict_list):
         sd.screen_draw_directed_line(line_dict,stroke_weight=3,color=color[times%len(color)])
 
+    print("*" * 10)
+    print(the_origin_gird)
+    print("*" * 10)
     sd.screen_draw_directed_line(the_origin_gird,stroke_weight=5,color=py5.color(0,0,0,125))
 
     # inter_info=tilling.get_girds_interaction(gird_data)
@@ -54,7 +60,7 @@ def draw():
 
 
 if __name__ == "__main__":
-    sd=Screen_draw(py5)
+    sd = Screen_draw(py5)
     color = [
         py5.color(255, 0, 0),
         py5.color(0, 255, 0),
@@ -73,7 +79,6 @@ if __name__ == "__main__":
         py5.color(255, 125, 0),
     ]  # 颜色常量
     bs = BruijnsSystem()
-    # gird_data:list
     py5.run_sketch()
 
 

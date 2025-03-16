@@ -12,8 +12,8 @@ from itertools import islice, product
 from tabulate import tabulate
 import humanize
 from joblib import Parallel, delayed
-tools = Tools2D()
 
+tools = Tools2D()
 
 class BruijnsSystem:
     def __init__(self, sides: int = 5, origin_norm: int = 80, shifted_distance: int = 0, gap: int | list | tuple = 100,
@@ -178,7 +178,7 @@ class BruijnsSystem:
                 tar_i = set(last_col) - set(col)
                 tar_i = list(tar_i)
                 self._inter_df.drop(index=tar_i, columns=tar_i, inplace=True)
-        print('interaction_finish',time.time()-i_t)
+
         return self._inter_df
 
     @property
@@ -229,7 +229,7 @@ class BruijnsSystem:
         # 创建一组origin_vectors
         vectors_origin = self._create_origin_vector_numpy(sides, origin_norm)
         # 取vector的垂直向量vector_pen
-        vectors_origin_pen = Tools2D.vector_group_rotate_np(vectors_origin, 90).tolist()
+        vectors_origin_pen = tools.vector_group_rotate_np(vectors_origin, 90).tolist()
         vectors_origin = vectors_origin.tolist()
 
         # 定义有向直线origin_directed_line:0
@@ -286,7 +286,6 @@ class BruijnsSystem:
                 line_detail = tools.line_shift(line_dict, shift_vector, rewrite=False, drop=False)
                 self.data_df.at[index, i] = line_detail  # 命名方式1,2,3...
         # =============================== main ===============================
-
 
 class Tilling_Create:
     def __init__(self, map_df, inter_df):
@@ -674,7 +673,6 @@ def pd_print(df: pd.DataFrame, max_length=20, multi_index=False):
         print(tabulate(df_shortened, headers='keys', tablefmt="pretty", showindex=False))
     else:
         print(tabulate(df_shortened, headers='keys', tablefmt="pretty"))  # orgtbl #presto #pretty #github
-
 
 def deep_get_size(obj, seen=None):
     """
