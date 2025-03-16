@@ -5,10 +5,12 @@ import pandas as pd
 start_location:list
 def setup():
     global start_location
-    py5.size(500, 500)
+    py5.size(1280, 768)
     start_location= sd.screen_axis(0,0)
     load()
-    slider('num1', [50, py5.height - 120], value=0, range_val=[0, 1000],size=[400,30])
+    slider('num1', [50, py5.height - 130], value=0, range_val=[0, 10],size=[400,30])
+    slider('num2', [50, py5.height - 90], value=0, range_val=[0, 100], size=[400, 30])
+    slider('num3', [50, py5.height - 50], value=0, range_val=[0, 1000], size=[400, 30])
     for k,v in tool.point_dic.items():
         tool.point_dic[k]=tool.point_shift(v,start_location)
 
@@ -17,7 +19,7 @@ def draw():
     py5.background(155)
     back = slider_value()
     if back is not None:
-        i_seg_group = till.WFS(back['num1'])
+        i_seg_group = till.WFS(back['num1']+back['num2']+back['num3'])
         tool.reset()
         for seg in i_seg_group:
             tool.Segmentline_drop(seg[0], seg[1], color=py5.color(0, 0, 0, 100))
@@ -28,7 +30,7 @@ def draw():
 
 if __name__ == "__main__":
     tool = Tools2D()
-    a = BruijnsSystem.BruijnsSystem(shifted_distance=6,origin_norm=20,max_num_of_line=1000)
+    a = BruijnsSystem.BruijnsSystem(shifted_distance=6,origin_norm=20,max_num_of_line=500)
     print('Gird-finish')
     till = a.tilling
     print('Tilling-finish')
