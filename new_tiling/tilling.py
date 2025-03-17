@@ -32,6 +32,7 @@ if __name__ == "__main__":
     tool = Tools2D()
     a = BruijnsSystem.BruijnsSystem(sides=5,shifted_distance=70,origin_norm=20,max_num_of_line=500)
     #TODO 3,7,9 都不行
+    #TODO 估计是get_tilling_shape这个环节出现问题.
     print('Gird-finish')
     till = a.tilling
     print('Tilling-finish')
