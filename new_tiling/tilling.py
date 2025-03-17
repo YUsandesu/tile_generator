@@ -30,7 +30,8 @@ def draw():
 
 if __name__ == "__main__":
     tool = Tools2D()
-    a = BruijnsSystem.BruijnsSystem(shifted_distance=6,origin_norm=20,max_num_of_line=500)
+    a = BruijnsSystem.BruijnsSystem(sides=5,shifted_distance=70,origin_norm=20,max_num_of_line=500)
+    #TODO 3,7,9 都不行
     print('Gird-finish')
     till = a.tilling
     print('Tilling-finish')
