@@ -30,9 +30,11 @@ def draw():
 
 if __name__ == "__main__":
     tool = Tools2D()
-    a = BruijnsSystem.BruijnsSystem(sides=5,shifted_distance=70,origin_norm=20,max_num_of_line=500)
+    a = BruijnsSystem.BruijnsSystem(sides=3,shifted_distance=70,origin_norm=20,max_num_of_line=50)
     #TODO 3,7,9 都不行
-    #TODO 估计是get_tilling_shape这个环节出现问题.
+    #TODO 应该在在gird中把当前tilling的点画出来.
+    #TODO 是因为在同一方向上,A的1方向 和B的2方向 都是C 我在拼接的思路上有问题
+    #TODO
     print('Gird-finish')
     till = a.tilling
     print('Tilling-finish')
