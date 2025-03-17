@@ -16,7 +16,7 @@ from joblib import Parallel, delayed
 tools = Tools2D()
 
 class BruijnsSystem:
-    def __init__(self, sides: int = 5, origin_norm: int = 80, shifted_distance: int = 0, gap: int | list | tuple = 100,
+    def __init__(self, sides: int = 5, origin_norm: int|float = 80, shifted_distance: int|float = 0, gap: int | list | tuple = 100,
                  center: tuple = (100, 100), max_num_of_line: int = 50):
         self._grid_config = {
             'sides': sides,
@@ -81,14 +81,13 @@ class BruijnsSystem:
         # xs全称是"cross-section"，用于从DataFrame中提取特定的横截面数据。
         # 它通常用于多层索引（MultiIndex），允许通过指定某个索引级别和值来快速选择数据，无需手动拆分索引。
         _map_df = pd.DataFrame()
-        the_origin_vectors = self.data_df['origin_vector'].to_dict()
+        the_origin_vectors = self.data_df[['origin_vector','directed_vector']].T.to_dict('list')
         sides = len(the_origin_vectors)
-        pd_print(self.data_df,max_length=100)
-        info_zip: list = []  # clock_id,origin_id,mirror_id,vector
+
         if sides % 2 != 0:  # 奇数
-            mirror_vector = np.array(list(the_origin_vectors.values()))
-            mirror_vector = (-mirror_vector).tolist()
-            for index, the_vector in the_origin_vectors.items():
+            info_zip: list = []  # clock_id,origin_id,mirror_id,vector,distance_vector
+            for index, (the_vector,directed_vector) in the_origin_vectors.items():
+
                 # 例：sides = 5
                 # 圆被分成5个等分，并且存在另外5个镜像等分，总共10个分区
                 # 这种排列是由于180°旋转对称导致的
@@ -96,21 +95,44 @@ class BruijnsSystem:
                 # 索引镜像：列表长度为10，原索引 i 镜像到 (i + 镜像间隔:sides) % 总等分数:sides * 2
                 # 例如: 0, 2, 4, 6, 8 分别镜像到: 5, 7, 9, 1, 3
                 # 值: 1, 2, 3, 4, 5 分别变为: -1, -2, -3, -4, -5
-                info_zip.append([index * 2, index, index + sides, the_vector])
-                info_zip.append([(index * 2 + sides) % (sides * 2), index + 5, index, mirror_vector[index]])
-            _map_df = pd.DataFrame(info_zip, columns=['clock_id', 'origin_id', 'mirror_id', 'vector'])
+
+                vx,vy = the_vector
+                info_zip.append([index * 2,      #clock_id
+                                 index,          #origin_id
+                                 index + sides,  #mirror_id
+                                 the_vector,     #origin_vector
+                                 directed_vector #direction_vector
+                                 ])
+                # d_x,d_y = directed_vector
+                info_zip.append([(index * 2 + sides) % (sides * 2),
+                                 index + sides,
+                                 index,
+                                 [-vx,-vy],
+                                 np.NAN # [-d_x,-d_y] #TODO 这里可能出错误
+                                 ])
+
+            _map_df = pd.DataFrame(info_zip, columns=['clock_id', 'origin_id', 'mirror_id', 'vector','directed_vector'])
             _map_df.set_index(['clock_id', 'origin_id', 'mirror_id'], inplace=True)
             _map_df.sort_index(level='clock_id', inplace=True)
             _map_df.index = _map_df.index.droplevel('clock_id')
         else:
+
             # 例: sides = 6 时，向量 0 和 3, 1 和 4, 2 和 5 互为正对
             # 为了避免在初始状态 (shift_distance = 0) 下，walking 和 walking_mirror 选取到重复的向量
             # walking_mirror 的选取需要排除 walking 中已有的向量，并选择 "对位" 的向量
             # "对位" 的向量通过 (i + 镜像间隔:sides//2) % 总等分数:sides 计算得到，它指向与 index 索引向量正对的位置
-            info_zip = [[index, (index + sides // 2) % sides, the_vector]
-                        for index, the_vector in the_origin_vectors.items()]
-            _map_df = pd.DataFrame(info_zip, columns=['origin_id', 'mirror_id', 'vector'])
+
+            info_zip = [
+                         [index,                          #index
+                         (index + sides // 2) % sides,   #mirror_index
+                         the_vector,                     #origin_vector
+                         d_v]                            #direction_vector
+                         for index, (the_vector,d_v) in the_origin_vectors.items()
+                        ]
+
+            _map_df = pd.DataFrame(info_zip, columns=['origin_id', 'mirror_id', 'vector','directed_vector'])
             _map_df.set_index(['origin_id', 'mirror_id'], inplace=True)
+
         return _map_df
 
     @property
@@ -179,6 +201,7 @@ class BruijnsSystem:
                 tar_i = list(tar_i)
                 self._inter_df.drop(index=tar_i, columns=tar_i, inplace=True)
 
+        print('interaction_used:',time.time()-t_i)
         return self._inter_df
 
     @property
@@ -355,11 +378,13 @@ class Tilling_Create:
         返回:
         tuple: 一个包含方向向量 x 和 y 分量符号（sx, sy）的元组。
         """
-        tar = self.map_df.loc[:,'vector']
+        tar = self.map_df['directed_vector']
         r_d = {}
-        for i_,v in tar.items():
-            d_vector = tools.vector_rotate(v, 90)  # TODO 这里不能这么算 应该拓展map_df 直接获取
-            s_x ,s_y = np.sign(d_vector[0]), np.sign(d_vector[1])
+        for i_,d_v in tar.items():
+            if not isinstance(d_v,list):
+                print('directed_vector is None')
+                continue
+            s_x ,s_y = np.sign(d_v[0]), np.sign(d_v[1])
             if s_x < 0 or (s_x == 0 and s_y < 0):
                 r_d[i_[0]] = False
                 continue
@@ -472,7 +497,6 @@ class Tilling_Create:
         """
         enable_map = self.map_df[(self.map_df.index.get_level_values('origin_id').isin(vectors_id_list)) |
                                  (self.map_df.index.get_level_values('mirror_id').isin(vectors_id_list))] #一个布尔or操作,找到所有符合要求的信息
-        print(enable_map)
         enable_vectors = enable_map['vector'].tolist()
         enable_id = enable_map.index.get_level_values('origin_id').tolist()
         # enable_vectors只是移动的路径,需要绘制成坐标点
@@ -533,14 +557,7 @@ class Tilling_Create:
         now_loc,next_data = self._next_loc_list(loc)
         r_dict = {tuple(loc):origin_shape}
         for next_loc,direction in next_data:
-
-            try:back = self.splice_tilling(origin_shape,self._loc_to_tilling_shape(next_loc),direction)
-            except Exception as e:
-                back = self.splice_tilling(origin_shape,self._loc_to_tilling_shape(next_loc))
-                print('direction:',direction)
-                print('now_next_list',self._next_loc_list(loc))
-                print('next_next_list',self._next_loc_list(next_loc))
-                print(f'now_loc:{loc}-->next_loc:{next_loc}')
+            back = self.splice_tilling(origin_shape,self._loc_to_tilling_shape(next_loc),direction)
             r_dict[tuple(next_loc)] = back
         return now_loc,r_dict
 
@@ -625,27 +642,29 @@ class Tilling_Create:
     def splice_tilling(self,a_tilling,b_tilling,direction=None):
         #direction: origin_vector 代表a与b重合的位置(从a的角度),例:a的1和b的6重合-->direction=1
 
-        #TODO 这是因为不知道哪里错了,临时的方法
-        if not direction:
-            a_v = a_tilling.keys()
-            a_v_mirror = [self.origin_to_mirror(_v) for _v in a_v]
-            for a_v_m in a_v_mirror:
-                if a_v_m in b_tilling:
-                    direction = self.mirror_to_origin(a_v_m)
-            pd_print(self.map_df)
-            print('direction: ',direction)
-            print('a_tilling:',a_tilling)
-            print('b_t...:',b_tilling)
-            if not direction:
-                raise ValueError('not direction 还是没找到!')
+        # #临时的方法
+        # if not direction:
+        #     a_v = a_tilling.keys()
+        #     a_v_mirror = [self.origin_to_mirror(_v) for _v in a_v]
+        #     for a_v_m in a_v_mirror:
+        #         if a_v_m in b_tilling:
+        #             direction = self.mirror_to_origin(a_v_m)
+        #     print('direction: ',direction)
+        #     print('a_tilling:',a_tilling)
+        #     print('b_t...:',b_tilling)
+        #     if not direction:
+        #         raise ValueError('not direction 还是没找到!')
 
         #================main===============
 
         # 因为两次直线方向相反,所以第一个取[0],第二个取[1]
-        b_same = b_tilling[self.mirror_to_origin(direction)][0] #TODO 为啥呀???为啥没找到啊
+
+        b_same = b_tilling[self.mirror_to_origin(direction)][0]
+
         o_same = a_tilling[direction][1]
 
-        shift_v =  [o_same[0]-b_same[0],o_same[1]-b_same[1]]
+        shift_v = [o_same[0] - b_same[0], o_same[1] - b_same[1]]
+
         b_tilling = {k:tools.point_shift(v,shift_v)for k,v in b_tilling.items()}
 
         return b_tilling
