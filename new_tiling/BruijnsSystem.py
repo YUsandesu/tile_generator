@@ -10,7 +10,7 @@ import pandas as pd
 import warnings
 from itertools import islice, product
 from tabulate import tabulate
-import humanize
+# import humanize
 from joblib import Parallel, delayed
 
 tools = Tools2D()
@@ -292,6 +292,7 @@ class Tilling_Create:
         self.inter_df = inter_df
         self.map_df = map_df
         self.sorted_df = self._sorted_df()
+        self.tilling_map_p = pd.DataFrame()
 
     @staticmethod
     def sort(input_df, direction_dic):
@@ -338,7 +339,32 @@ class Tilling_Create:
             the_dict[line_id] = r
 
         return the_dict
+    def get_direction_map(self) -> dict:
+        """
+        根据direction_vector来确定直线走向。
+        定义如下：
+        - +x, +y（x递增）
+        - -x, +y（x递减）
+        - -x, -y（x递减）
+        - +x, -y（x递增）
+        该函数返回一个包含向量 x 和 y 分量符号的元组，用于指示向量在其象限中的方向。
 
+        参数:
+        line_tuple (tuple): 包含线条索引的元组。
+
+        返回:
+        tuple: 一个包含方向向量 x 和 y 分量符号（sx, sy）的元组。
+        """
+        tar = self.map_df.loc[:,'vector']
+        r_d = {}
+        for i_,v in tar.items():
+            d_vector = tools.vector_rotate(v, 90)  # TODO 这里不能这么算 应该拓展map_df 直接获取
+            s_x ,s_y = np.sign(d_vector[0]), np.sign(d_vector[1])
+            if s_x < 0 or (s_x == 0 and s_y < 0):
+                r_d[i_[0]] = False
+                continue
+            r_d[i_[0]] = True
+        return r_d
 
     def _sorted_df(self):
         """
@@ -358,34 +384,9 @@ class Tilling_Create:
                     - `[line_index_1, line_index_2, ...]`: 多条线在此点相交。
         """
 
-        def get_direction_map() -> dict:
-            """
-            根据direction_vector来确定直线走向。
-            定义如下：
-            - +x, +y（x递增）
-            - -x, +y（x递减）
-            - -x, -y（x递减）
-            - +x, -y（x递增）
-            该函数返回一个包含向量 x 和 y 分量符号的元组，用于指示向量在其象限中的方向。
 
-            参数:
-            line_tuple (tuple): 包含线条索引的元组。
 
-            返回:
-            tuple: 一个包含方向向量 x 和 y 分量符号（sx, sy）的元组。
-            """
-            tar = self.map_df.loc[:,'vector']
-            r_d = {}
-            for i_,v in tar.items():
-                d_vector = tools.vector_rotate(v, 90)  # TODO 这里不能这么算 应该拓展map_df 直接获取
-                s_x ,s_y = np.sign(d_vector[0]), np.sign(d_vector[1])
-                if s_x < 0 or (s_x == 0 and s_y < 0):
-                    r_d[i_[0]] = False
-                    continue
-                r_d[i_[0]] = True
-            return r_d
-
-        d_map = get_direction_map()
+        d_map = self.get_direction_map()
         num = 2
         print('start-cut')
         df_chunks = np.array_split(self.inter_df, num, axis=1)
@@ -469,8 +470,9 @@ class Tilling_Create:
                   格式: {vector_id: segment。}
                   其中segment。是一个[x, y]坐标的列表
         """
-        enable_map = self.map_df[(self.map_df.index.get_level_values('origin_id').isin(vectors_id_list)) | (
-            self.map_df.index.get_level_values('mirror_id').isin(vectors_id_list))] #一个布尔or操作,找到所有符合要求的信息
+        enable_map = self.map_df[(self.map_df.index.get_level_values('origin_id').isin(vectors_id_list)) |
+                                 (self.map_df.index.get_level_values('mirror_id').isin(vectors_id_list))] #一个布尔or操作,找到所有符合要求的信息
+        print(enable_map)
         enable_vectors = enable_map['vector'].tolist()
         enable_id = enable_map.index.get_level_values('origin_id').tolist()
         # enable_vectors只是移动的路径,需要绘制成坐标点
@@ -531,7 +533,14 @@ class Tilling_Create:
         now_loc,next_data = self._next_loc_list(loc)
         r_dict = {tuple(loc):origin_shape}
         for next_loc,direction in next_data:
-            back = self.splice_tilling(origin_shape,self._loc_to_tilling_shape(next_loc),direction)
+
+            try:back = self.splice_tilling(origin_shape,self._loc_to_tilling_shape(next_loc),direction)
+            except Exception as e:
+                back = self.splice_tilling(origin_shape,self._loc_to_tilling_shape(next_loc))
+                print('direction:',direction)
+                print('now_next_list',self._next_loc_list(loc))
+                print('next_next_list',self._next_loc_list(next_loc))
+                print(f'now_loc:{loc}-->next_loc:{next_loc}')
             r_dict[tuple(next_loc)] = back
         return now_loc,r_dict
 
@@ -613,12 +622,27 @@ class Tilling_Create:
             seg_data.extend(seg)
         return seg_data
 
-    def splice_tilling(self,a_tilling,b_tilling,direction):
+    def splice_tilling(self,a_tilling,b_tilling,direction=None):
         #direction: origin_vector 代表a与b重合的位置(从a的角度),例:a的1和b的6重合-->direction=1
+
+        #TODO 这是因为不知道哪里错了,临时的方法
+        if not direction:
+            a_v = a_tilling.keys()
+            a_v_mirror = [self.origin_to_mirror(_v) for _v in a_v]
+            for a_v_m in a_v_mirror:
+                if a_v_m in b_tilling:
+                    direction = self.mirror_to_origin(a_v_m)
+            pd_print(self.map_df)
+            print('direction: ',direction)
+            print('a_tilling:',a_tilling)
+            print('b_t...:',b_tilling)
+            if not direction:
+                raise ValueError('not direction 还是没找到!')
+
         #================main===============
 
         # 因为两次直线方向相反,所以第一个取[0],第二个取[1]
-        b_same = b_tilling[self.mirror_to_origin(direction)][0]
+        b_same = b_tilling[self.mirror_to_origin(direction)][0] #TODO 为啥呀???为啥没找到啊
         o_same = a_tilling[direction][1]
 
         shift_v =  [o_same[0]-b_same[0],o_same[1]-b_same[1]]
