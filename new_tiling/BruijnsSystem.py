@@ -317,6 +317,34 @@ class Tilling_Create:
         self.sorted_df = self._sorted_df()
         self.tilling_map_p = pd.DataFrame()
 
+    def get_direction_map(self) -> dict:
+        """
+        根据direction_vector来确定直线走向。
+        定义如下：
+        - +x, +y（x递增）
+        - -x, +y（x递减）
+        - -x, -y（x递减）
+        - +x, -y（x递增）
+        该函数返回一个包含向量 x 和 y 分量符号的元组，用于指示向量在其象限中的方向。
+
+        参数:
+        line_tuple (tuple): 包含线条索引的元组。
+
+        返回:
+        tuple: 一个包含方向向量 x 和 y 分量符号（sx, sy）的元组。
+        """
+        tar = self.map_df['directed_vector']
+        r_d = {}
+        for i_,d_v in tar.items():
+            if not isinstance(d_v,list):
+                print('directed_vector is None')
+                continue
+            s_x ,s_y = np.sign(d_v[0]), np.sign(d_v[1])
+            if s_x < 0 or (s_x == 0 and s_y < 0):
+                r_d[i_[0]] = False
+                continue
+            r_d[i_[0]] = True
+        return r_d
     @staticmethod
     def sort(input_df, direction_dic):
         the_dict = {}
@@ -355,42 +383,15 @@ class Tilling_Create:
                     continue
                 indices[t_] = [i]
 
-            r = [[df_index[_id] for _id in i_list] for i_list in indices]
-
-            r = list(r) + [np.NAN] * (len(df_index) - len(r))
-
+            r = (
+                [[df_index[_id] for _id in i_list] for i_list in indices]
+                + [np.NAN] * (len(df_index) - len(indices)) #保持维度一致,不然没法添加到dataframe
+                )
+            inf = [inter_list[i_list[0]] for i_list in indices]
+            #TODO
             the_dict[line_id] = r
 
         return the_dict
-    def get_direction_map(self) -> dict:
-        """
-        根据direction_vector来确定直线走向。
-        定义如下：
-        - +x, +y（x递增）
-        - -x, +y（x递减）
-        - -x, -y（x递减）
-        - +x, -y（x递增）
-        该函数返回一个包含向量 x 和 y 分量符号的元组，用于指示向量在其象限中的方向。
-
-        参数:
-        line_tuple (tuple): 包含线条索引的元组。
-
-        返回:
-        tuple: 一个包含方向向量 x 和 y 分量符号（sx, sy）的元组。
-        """
-        tar = self.map_df['directed_vector']
-        r_d = {}
-        for i_,d_v in tar.items():
-            if not isinstance(d_v,list):
-                print('directed_vector is None')
-                continue
-            s_x ,s_y = np.sign(d_v[0]), np.sign(d_v[1])
-            if s_x < 0 or (s_x == 0 and s_y < 0):
-                r_d[i_[0]] = False
-                continue
-            r_d[i_[0]] = True
-        return r_d
-
     def _sorted_df(self):
         """
         Bruijns 系统中基于交点建立网格线邻接关系的关键预处理步骤。
@@ -408,25 +409,28 @@ class Tilling_Create:
                     - `[line_index]`: 单条线在此点相交。
                     - `[line_index_1, line_index_2, ...]`: 多条线在此点相交。
         """
-
-
-
         d_map = self.get_direction_map()
-        num = 2
-        print('start-cut')
-        df_chunks = np.array_split(self.inter_df, num, axis=1)
-        print('cut_finish')
+
+        inter_num = len(self.inter_df)
+        num = inter_num//500 if inter_num >1000 else 1
+
+        if num >1:
+            print('start-cut')
+            df_chunks = np.array_split(self.inter_df, num, axis=1)
+            print('finish-cut')
+        else:
+            df_chunks = [self.inter_df]
 
         # 使用 joblib.Parallel 并行调用 sort 方法
         results = Parallel(n_jobs=num)(
             delayed(self.sort)(chunk, d_map) for chunk in df_chunks
-        ) #backend="threading"
-        print('return:', results)
+        )  # backend="threading"
 
         # 合并各个分块返回的字典结果
         walk_dict = {}
         for i in results:
             walk_dict = walk_dict | i
+
         return pd.DataFrame(walk_dict).dropna(how='all')
 
 
