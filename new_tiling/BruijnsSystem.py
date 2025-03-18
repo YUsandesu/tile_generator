@@ -387,7 +387,7 @@ class Tilling_Create:
                 [[df_index[_id] for _id in i_list] for i_list in indices]
                 + [np.NAN] * (len(df_index) - len(indices)) #保持维度一致,不然没法添加到dataframe
                 )
-            inf = [inter_list[i_list[0]] for i_list in indices]
+            inf = [inter_list.iloc[i_list[0]] for i_list in indices]
             #TODO
             the_dict[line_id] = r
 
